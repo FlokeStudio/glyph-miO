@@ -8,7 +8,7 @@
   <img src="https://img.shields.io/badge/Obsidian-Plugin-7c3aed" alt="Obsidian" />
   <img src="https://img.shields.io/badge/version-2.3.0-blue" alt="version" />
   <img src="https://img.shields.io/badge/offline--first-green" alt="offline" />
-  <a href="README.ru.md">Russianя</a>
+  <a href="README.ru.md">Russian</a>
 </p>
 
 **Metadata Intelligence** for Obsidian — analyze notes, suggest tags, insert summaries. Works offline; [Ollama](https://ollama.com/) optional.
