@@ -1,5 +1,6 @@
 const {
   Plugin,
+  Modal,
   Notice,
   PluginSettingTab,
   Setting,
