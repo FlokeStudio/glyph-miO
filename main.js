@@ -55,7 +55,10 @@ async function ollamaGenerate(req, options) {
         prompt: req.prompt,
       }),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.warn('glyph-miO: Ollama', res.status, res.statusText);
+      return null;
+    }
     const data = await res.json();
     return data.response != null ? data.response : null;
   } catch (e) {
@@ -71,6 +74,89 @@ async function ollamaJson(req, options) {
     options
   );
   return text ? parseJsonLoose(text) : null;
+}
+
+const SUMMARY_MARKER = '<!-- glyph-miO-summary -->';
+
+const STOP_WORDS = new Set([
+  'the', 'that', 'this', 'with', 'from', 'have', 'will', 'your', 'note', 'tags', 'and', 'for',
+  'для', 'как', 'это', 'при', 'что', 'или', 'эта', 'этот', 'того', 'быть', 'были', 'может',
+  'также', 'через', 'после', 'если', 'когда', 'только', 'уже', 'все', 'всё', 'его', 'ее', 'её',
+]);
+
+function stripForSummary(body) {
+  return String(body || '')
+    .replace(/^---[\s\S]*?---\n?/m, '')
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/!\[[^\]]*\]\([^)]+\)/g, ' ')
+    .replace(/\[\[([^\]|]+)(\|[^\]]+)?\]\]/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/#{1,6}\s+/gm, '')
+    .replace(/[*_~>`]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function splitSentences(text) {
+  const parts = text
+    .split(/(?<=[.!?…])\s+|\n+/)
+    .map(function (s) {
+      return s.trim();
+    })
+    .filter(function (s) {
+      return s.length > 18;
+    });
+  return parts.length ? parts : [text.trim()];
+}
+
+function extractiveSummary(body, meta) {
+  const plain = stripForSummary(body);
+  if (!plain) return 'Заметка пуста — нечего пересказывать.';
+  const sentences = splitSentences(plain);
+  if (sentences.length <= 2) return sentences.join(' ');
+
+  const words = plain.toLowerCase().match(/[a-zа-яё0-9]{4,}/gi) || [];
+  const freq = new Map();
+  words.forEach(function (w) {
+    const k = w.toLowerCase();
+    if (!STOP_WORDS.has(k)) freq.set(k, (freq.get(k) || 0) + 1);
+  });
+  (meta.headings || []).forEach(function (h) {
+    String(h)
+      .toLowerCase()
+      .split(/\s+/)
+      .forEach(function (w) {
+        if (w.length > 3) freq.set(w, (freq.get(w) || 0) + 8);
+      });
+  });
+
+  const scored = sentences.map(function (s, i) {
+    const sw = s.toLowerCase().match(/[a-zа-яё0-9]{4,}/gi) || [];
+    let sc = 0;
+    sw.forEach(function (w) {
+      sc += freq.get(w) || 0;
+    });
+    if (i < 2) sc += 3;
+    return { s: s, sc: sc, i: i };
+  });
+  scored.sort(function (a, b) {
+    return b.sc - a.sc;
+  });
+
+  const picked = [];
+  const seen = new Set();
+  for (let pi = 0; pi < scored.length && picked.length < 4; pi++) {
+    const key = scored[pi].s.slice(0, 48);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    picked.push({ s: scored[pi].s, i: scored[pi].i });
+  }
+  picked.sort(function (a, b) {
+    return a.i - b.i;
+  });
+  return picked.map(function (p) {
+    return p.s;
+  }).join(' ');
 }
 
 const DEFAULT_SETTINGS = {
@@ -148,14 +234,20 @@ class GlyphMiOPanel extends Modal {
       self.refresh()
     );
     actions.createEl('button', { text: 'Insert summary' }).addEventListener('click', () =>
-      self.plugin.summarizeNote()
+      self.insertFromPanel()
+    );
+    actions.createEl('button', { text: 'Go to summary' }).addEventListener('click', () =>
+      self.plugin.jumpToSummary()
     );
     actions.createEl('button', { text: 'Copy #tags' }).addEventListener('click', () =>
       self.copyTags()
     );
+    this.summaryPreviewEl = contentEl.createEl('div', { cls: 'glyph-mio-summary-preview' });
+    this.summaryStatusEl = contentEl.createEl('p', { cls: 'glyph-mio-summary-status' });
     contentEl.createEl('p', {
       cls: 'glyph-mio-help',
-      text: 'Settings → Community plugins → glyph-miO → gear icon. Enable Ollama for richer summaries.',
+      text:
+        '«Insert summary» — краткий пересказ в конце заметки (callout). Сначала Analyze, затем вставка. Go to summary — перейти к блоку.',
     });
     this.refresh();
   }
@@ -186,6 +278,14 @@ class GlyphMiOPanel extends Modal {
         view.editor.replaceRange('#' + tag + ' ', pos);
       });
     });
+
+    const preview = extractiveSummary(doc.body, meta);
+    this._previewSummary = preview;
+    if (this.summaryPreviewEl) {
+      this.summaryPreviewEl.empty();
+      this.summaryPreviewEl.createEl('div', { cls: 'glyph-mio-preview-label', text: 'Черновик пересказа:' });
+      this.summaryPreviewEl.createEl('div', { cls: 'glyph-mio-preview-text', text: preview });
+    }
   }
 
   copyTags() {
@@ -196,6 +296,15 @@ class GlyphMiOPanel extends Modal {
     const line = this._meta.tags.map((t) => '#' + t).join(' ');
     navigator.clipboard.writeText(line);
     new Notice('Tags copied');
+  }
+
+  async insertFromPanel() {
+    const ok = await this.plugin.summarizeNote({ fromPanel: true });
+    if (ok && this.summaryStatusEl) {
+      this.summaryStatusEl.setText(
+        'Пересказ добавлен в конец «' + ok.title + '» (стр. ~' + ok.line + ', ' + ok.mode + ').'
+      );
+    }
   }
 }
 
@@ -223,6 +332,11 @@ class GlyphMiOPlugin extends Plugin {
       id: 'glyph-mio-summarize',
       name: 'Glyph: summarize note',
       callback: () => this.summarizeNote(),
+    });
+    this.addCommand({
+      id: 'glyph-mio-jump-summary',
+      name: 'Glyph: jump to MI summary',
+      callback: () => this.jumpToSummary(),
     });
   }
 
@@ -293,60 +407,113 @@ class GlyphMiOPlugin extends Plugin {
     new Notice(line || 'No tags suggested');
   }
 
-  async summarizeNote() {
+  async summarizeNote(opts) {
+    opts = opts || {};
     const doc = await this.readActive();
-    if (!doc) return;
+    if (!doc) {
+      new Notice('Откройте заметку / Open a note first');
+      return null;
+    }
     const meta = this.algorithmicMeta(doc.file.basename, doc.body, doc.cache);
     const excerpt = doc.body.slice(0, 6000);
+    let summaryText = null;
+    let summaryTags = meta.tags;
+    let mode = 'offline';
 
     if (this.settings.useOllama) {
       const ok = await ollamaAvailable({ ollamaUrl: this.settings.ollamaUrl });
       if (ok) {
+        new Notice('Glyph: пишем пересказ (Ollama)…', 3000);
         const parsed = await ollamaJson(
           {
             prompt:
-              'Summarize this Obsidian note in 2-4 sentences. Reply JSON only: {"summary":"...","tags":["..."]}\n\nTitle: ' +
+              'Ты редактор Obsidian. Прочитай заметку и напиши краткий пересказ смысла (3–5 предложений) на том же языке, что основной текст. ' +
+              'В summary не перечисляй теги и метаданные — только пересказ содержания. ' +
+              'Ответ строго JSON: {"summary":"текст пересказа","tags":["тег1","тег2"]}\n\n' +
+              'Заголовок: ' +
               meta.title +
-              '\nHeadings: ' +
+              '\nРазделы: ' +
               meta.headings.join(', ') +
-              '\n\n' +
+              '\n\nТекст:\n' +
               excerpt,
           },
           {
             ollamaUrl: this.settings.ollamaUrl,
             model: this.settings.ollamaModel,
-            timeoutMs: 45000,
+            timeoutMs: 60000,
           }
         );
         if (parsed && parsed.summary) {
-          await this.insertSummary(parsed.summary, parsed.tags || meta.tags);
-          new Notice('Glyph: summary added (Ollama)');
-          return;
+          summaryText = String(parsed.summary).trim();
+          summaryTags = Array.isArray(parsed.tags) ? parsed.tags : meta.tags;
+          mode = 'Ollama';
+        } else {
+          new Notice('Ollama недоступна (500?) — офлайн-пересказ', 5000);
         }
+      } else {
+        new Notice('Ollama не запущена — офлайн-пересказ', 4000);
       }
     }
 
-    const fallback =
-      '**' +
-      meta.title +
-      '** — ' +
-      meta.wordCount +
-      ' words, ' +
-      meta.links +
-      ' links. Key topics: ' +
-      (meta.tags.slice(0, 6).join(', ') || '—') +
-      '.';
-    await this.insertSummary(fallback, meta.tags);
-    new Notice('Glyph: summary added (offline)');
+    if (!summaryText) {
+      summaryText = extractiveSummary(doc.body, meta);
+      mode = 'extractive';
+    }
+
+    const placed = await this.insertSummary(summaryText, summaryTags);
+    if (!placed) return null;
+
+    const modeLabel =
+      mode === 'Ollama' ? 'пересказ (Ollama)' : mode === 'extractive' ? 'пересказ (офлайн)' : 'пересказ';
+    if (!opts.fromPanel) {
+      new Notice(
+        modeLabel + ' в конце «' + meta.title + '» (~стр. ' + placed.line + '). Jump to MI summary',
+        6000
+      );
+    }
+    return { title: meta.title, line: placed.line, mode: mode, summary: summaryText };
   }
 
   async insertSummary(text, tags) {
     const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-    if (!view) return;
+    if (!view) return null;
     const editor = view.editor;
-    const block = '\n\n> [!summary] Glyph MI-O\n> ' + text.replace(/\n/g, '\n> ') + '\n\n';
-    const tagLine = tags.length ? '\n' + tags.map((t) => '#' + t).join(' ') + '\n' : '';
-    editor.replaceRange(block + tagLine, { line: editor.lastLine(), ch: 0 });
+    const insertAt = editor.lastLine() + 1;
+    const body =
+      '\n\n---\n' +
+      SUMMARY_MARKER +
+      '\n> [!summary] Glyph MI-O\n> ' +
+      text.replace(/\n/g, '\n> ') +
+      '\n';
+    const tagLine = tags.length ? '\n' + tags.map((t) => '#' + String(t).replace(/^#/, '')).join(' ') + '\n' : '\n';
+    editor.replaceRange(body + tagLine, { line: editor.lastLine(), ch: editor.getLine(editor.lastLine()).length });
+    const cursorLine = insertAt + 2;
+    editor.setCursor({ line: cursorLine, ch: 0 });
+    editor.scrollIntoView(
+      { from: { line: Math.max(0, insertAt), ch: 0 }, to: { line: cursorLine + 4, ch: 0 } },
+      true
+    );
+    return { line: insertAt + 1 };
+  }
+
+  jumpToSummary() {
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!view) {
+      new Notice('Откройте заметку с саммари');
+      return;
+    }
+    const editor = view.editor;
+    const total = editor.lastLine();
+    for (let line = total; line >= 0; line--) {
+      const text = editor.getLine(line);
+      if (text.indexOf(SUMMARY_MARKER) >= 0 || text.indexOf('[!summary] Glyph MI-O') >= 0) {
+        editor.setCursor({ line: line, ch: 0 });
+        editor.scrollIntoView({ from: { line: line, ch: 0 }, to: { line: line + 6, ch: 0 } }, true);
+        new Notice('Саммари Glyph MI-O');
+        return;
+      }
+    }
+    new Notice('Саммари не найдено — сначала «Insert summary»');
   }
 }
 

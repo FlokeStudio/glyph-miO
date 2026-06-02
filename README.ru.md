@@ -2,50 +2,46 @@
   <a href="https://obsidian.md/"><img src="https://obsidian.md/images/obsidian-logo-gradient.svg" width="72" alt="Obsidian" /></a>
 </p>
 
-<h1 align="center">glyph-miO 2.3-O</h1>
+<h1 align="center">glyph-miO 2.3</h1>
 
 <p align="center">
   <a href="README.md">🇬🇧 English</a>
 </p>
 
-**Metadata Intelligence** для Obsidian — анализ заметки, теги, саммари. Офлайн; [Ollama](https://ollama.com/) по желанию.
+## Зачем glyph-miO
 
----
+**glyph-miO** — **Metadata Intelligence** для Obsidian: не только теги, а **краткий пересказ** заметки, который можно вставить в дневник.
 
-## Как пользоваться
+| Возможность | Как |
+|-------------|-----|
+| **Пересказ** | 3–5 предложений (Ollama) или офлайн-выжимка по абзацам |
+| **Теги** | Частотный анализ + frontmatter; клик → `#тег` в курсор |
+| **Черновик** | **Analyze** показывает пересказ до вставки |
+| **Куда попадает** | **Insert summary** → **конец активной заметки**, callout `> [!summary] Glyph MI-O` |
+| **Перейти** | **Go to summary** или **Glyph: jump to MI summary** |
 
-1. Установите плагин в `.obsidian/plugins/glyph-mi-o/`.
-2. Включите **glyph-miO 2.3**, перезагрузите Obsidian (**Ctrl+R**).
-3. Откройте заметку.
-4. Нажмите иконку **✨** на ленте или команду **`Glyph: open MI panel`**.
+Вместе с **[glyph-sO](https://github.com/FlokeStudio/glyph-sO)**: нашли «шаурма» в поиске → открыли → **Insert summary**.
 
-### Панель MI
+Работает **без интернета**; Ollama по желанию.
 
-| Кнопка | Действие |
-|--------|----------|
-| **Analyze** | Слова, ссылки, заголовки, чипы тегов |
-| Клик по `#тегу` | Вставка тега в позицию курсора |
-| **Insert summary** | Блок `> [!summary]` в конце заметки |
-| **Copy #tags** | Теги в буфер обмена |
+### Быстрый старт
 
-### Команды (Ctrl+P)
+1. Откройте заметку.
+2. **✨** на ленте или **`Glyph: open MI panel`**.
+3. **Analyze** — статистика, черновик пересказа, чипы тегов.
+4. **Insert summary** — прокрутка к блоку внизу.
 
-- `Glyph: open MI panel` — главный интерфейс  
-- `Glyph: analyze active note` — краткая статистика  
-- `Glyph: suggest tags` — теги во всплывающем уведомлении  
-- `Glyph: summarize note` — саммари  
+Если Ollama отвечает **500** — вставится **офлайн-пересказ** (уведомление об этом).
 
 ---
 
 ## Установка
 
 ```powershell
-# из floke_dev
 powershell -ExecutionPolicy Bypass -File F:\floke_dev\scripts\install-glyph-obsidian.ps1
 ```
 
-Или вручную скопируйте репозиторий в  
-`F:\ваш_vault\.obsidian\plugins\glyph-mi-o\`
+`.obsidian/plugins/glyph-mi-o/` → включить → **Ctrl+R**.
 
 ---
 
@@ -55,15 +51,27 @@ powershell -ExecutionPolicy Bypass -File F:\floke_dev\scripts\install-glyph-obsi
 ollama pull llama3.2
 ```
 
-**Настройки → glyph-miO** → включить Ollama → `http://127.0.0.1:11434`
+**Настройки → glyph-miO** → URL `http://127.0.0.1:11434`
 
-Без Ollama саммари строится локально по частоте слов.
+При ошибке модели отключите Ollama — пересказ останется офлайн.
 
 ---
 
-## Связанные репозитории
+## Команды
 
-- [glyph-mi](https://github.com/FlokeStudio/glyph-mi) — MI для Senza  
-- [glyph-sO](https://github.com/FlokeStudio/glyph-sO) — поиск по vault  
+| Команда | Действие |
+|---------|----------|
+| **Glyph: open MI panel** | Панель MI |
+| **Glyph: summarize note** | Пересказ в конец |
+| **Glyph: jump to MI summary** | К блоку Glyph |
+| **Glyph: analyze active note** | Краткая статистика |
 
-Floke Studio · GPL-3.0
+---
+
+## Техническая часть
+
+- Офлайн: ранжирование предложений по ключевым словам.
+- Ollama: JSON `{"summary","tags"}`.
+- [glyph-mi](https://github.com/FlokeStudio/glyph-mi) · [glyph-sO](https://github.com/FlokeStudio/glyph-sO)
+
+GPL-3.0 · Floke Studio
