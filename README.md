@@ -5,77 +5,209 @@
 <h1 align="center">glyph-miO 2.3</h1>
 
 <p align="center">
-  <a href="README.ru.md">🇷🇺 Русская документация</a>
+  <img src="https://img.shields.io/badge/Obsidian-Plugin-7c3aed" alt="Obsidian plugin" />
+  <img src="https://img.shields.io/badge/Glyph--MI-2.3-green" alt="Glyph-MI 2.3" />
+  <img src="https://img.shields.io/badge/version-2.3.0-blue" alt="version 2.3.0" />
+  <img src="https://img.shields.io/badge/offline--first-brightgreen" alt="offline first" />
+  <img src="https://img.shields.io/badge/Ollama-optional-orange" alt="Ollama optional" />
+  <img src="https://img.shields.io/badge/license-GPL--3.0-lightgrey" alt="GPL-3.0" />
 </p>
 
-## Why glyph-miO (for you)
+<p align="center">
+  <strong>Metadata Intelligence for Obsidian</strong> — analyze notes, suggest tags, insert a <em>short retelling</em> at the end of the note.<br/>
+  Works offline; local LLM via <a href="https://ollama.com/">Ollama</a> is optional.
+</p>
 
-**glyph-miO** adds **Metadata Intelligence** to your vault — not just tags, but a **short retelling** of the active note you can drop into the journal.
-
-| What you get | How |
-|--------------|-----|
-| **Real summary** | 3–5 sentences (Ollama) or extractive recap offline |
-| **Tag suggestions** | From headings + word frequency; click to insert `#tag` |
-| **Preview before insert** | **Analyze** shows draft summary in the panel |
-| **Clear placement** | **Insert summary** → end of note, callout `> [!summary] Glyph MI-O` |
-| **Jump to summary** | Button or command **Glyph: jump to MI summary** |
-
-Pair with **[glyph-sO](https://github.com/FlokeStudio/glyph-sO)**: find a note with Glyph Search, open it, run **Insert summary**.
-
-Works **offline**; [Ollama](https://ollama.com/) optional for richer Russian/English prose.
-
-### Quick start
-
-1. Open a note.
-2. Ribbon **✨** or **`Glyph: open MI panel`**.
-3. **Analyze** — stats + draft summary + tag chips.
-4. **Insert summary** — scrolls to the new block at the bottom.
-
-If Ollama returns **500**, you still get an **offline extractive** summary (no empty callout).
+<p align="center">
+  <a href="README.ru.md">🇷🇺 Русская документация</a>
+  ·
+  <a href="https://github.com/FlokeStudio/glyph-sO">glyph-sO</a> (vault search)
+  ·
+  <a href="https://github.com/FlokeStudio/glyph-mi">glyph-mi</a> (Senza)
+</p>
 
 ---
 
-## Install
+## What is glyph-miO?
 
-```powershell
-powershell -ExecutionPolicy Bypass -File F:\floke_dev\scripts\install-glyph-obsidian.ps1
+**glyph-miO** is a free **community plugin for [Obsidian](https://obsidian.md/)**. It looks at the **currently open note** and helps you:
+
+- understand it at a glance (**word count**, links, headings),
+- get **suggested `#tags`** (click to insert at the cursor),
+- add a **short summary (retelling)** — not just keywords, but sentences that describe what the note is about,
+- place that summary **clearly at the end of the note** in a callout block you can jump back to later.
+
+It is the Obsidian face of **Glyph Metadata Intelligence (MI) 2.3**. No cloud account, no npm build step.
+
+If you only need “find a word in my vault”, install **[glyph-sO](https://github.com/FlokeStudio/glyph-sO)** first. Many people use **both**: sO finds the note, miO summarizes it.
+
+---
+
+## What you get (vs “just tags”)
+
+| Feature | What it does |
+|---------|----------------|
+| **Analyze** | Stats + **draft summary preview** in the panel before you insert anything |
+| **Tag chips** | Suggested tags from headings and word frequency — click to insert `#tag` |
+| **Insert summary** | Adds a **retelling** (3–5 sentences with Ollama, or extractive offline) at the **bottom** of the active note |
+| **Go to summary / Jump command** | Scroll to the last Glyph summary block |
+| **Copy #tags** | Copy suggested tags to the clipboard |
+
+**Offline summary** picks the most informative sentences from your note (extractive method).  
+**Ollama summary** writes a smoother paraphrase in the note’s language — only if Ollama is running and the model responds.
+
+---
+
+## Install (first time)
+
+### Step 1 — Enable community plugins in Obsidian
+
+1. **Settings → Community plugins**
+2. Disable **Restricted mode** if needed
+3. **Turn on community plugins**
+
+### Step 2 — Install glyph-miO
+
+#### A) Manual install
+
+1. Download or clone [this repository](https://github.com/FlokeStudio/glyph-miO).
+2. In your vault: `.obsidian/plugins/glyph-mi-o/` (create folders if missing).
+3. Copy into that folder:
+   - `manifest.json`
+   - `main.js`
+   - `styles.css`
+
+   ```
+   YourVault/
+     .obsidian/
+       plugins/
+         glyph-mi-o/
+           manifest.json
+           main.js
+           styles.css
+   ```
+
+4. Enable **glyph-miO 2.3** under community plugins.
+5. **Ctrl+R** to reload Obsidian.
+
+#### B) BRAT
+
+**BRAT** → **Add Beta plugin** → `FlokeStudio/glyph-miO` → enable → reload.
+
+#### C) Git
+
+```bash
+cd /path/to/YourVault/.obsidian/plugins
+git clone https://github.com/FlokeStudio/glyph-miO.git glyph-mi-o
 ```
 
-`YOUR_VAULT/.obsidian/plugins/glyph-mi-o/` → enable → **Ctrl+R**.
+---
 
-No npm · no `vendor/`.
+## First steps after install
+
+1. Open **any markdown note** (daily note, journal, project doc).
+2. Click the **sparkles ✨** icon on the left ribbon **or** run **`Glyph: open MI panel`** from the command palette (`Ctrl+P`).
+3. Click **Analyze** — you should see title, word count, headings, tag chips, and a **draft summary** box.
+4. Click **Insert summary** — Obsidian scrolls to the **end of the note** and adds:
+
+   ```markdown
+   ---
+   <!-- glyph-miO-summary -->
+   > [!summary] Glyph MI-O
+   > Your retelling here…
+
+   #suggested #tags
+   ```
+
+5. If you do not see it, use **Go to summary** in the panel or **`Glyph: jump to MI summary`** — or press **Ctrl+End** in the editor.
+
+> The summary is always appended to the **active note** — the one you had open when you clicked Insert.
 
 ---
 
-## Ollama (optional)
+## Commands
+
+| Command | When to use |
+|---------|-------------|
+| **Glyph: open MI panel** | Main window (Analyze, tags, summary) |
+| **Glyph: summarize note** | Insert summary without opening the panel |
+| **Glyph: jump to MI summary** | Go to the last Glyph summary block |
+| **Glyph: analyze active note** | Quick popup with tag/link/word stats |
+| **Glyph: suggest tags** | Show suggested tags in a notice |
+
+---
+
+## Ollama (optional, local only)
+
+For richer summaries you can run **[Ollama](https://ollama.com/)** on your computer:
 
 ```bash
 ollama pull llama3.2
 ollama serve
 ```
 
-**Settings → glyph-miO** → Enable Ollama → `http://127.0.0.1:11434`
+In Obsidian: **Settings → glyph-miO 2.3** → **Enable Ollama** → URL `http://127.0.0.1:11434` → model name (e.g. `llama3.2`).
 
-If the model errors (HTTP 500), disable Ollama or fix the model name — offline summary still works.
+| Situation | What happens |
+|-----------|----------------|
+| Ollama off | **Offline extractive** summary — always works |
+| Ollama on, model OK | JSON summary + tags from the LLM |
+| HTTP **500** or timeout | Notice in Obsidian, **fallback to offline** summary — you still get text |
+
+**500 errors** usually mean: Ollama not running, wrong model name, or model not pulled. Fix Ollama or disable it in settings — the plugin remains useful offline.
 
 ---
 
-## Commands
+## Recommended workflow with glyph-sO
 
-| Command | Action |
-|---------|--------|
-| **Glyph: open MI panel** | Main UI |
-| **Glyph: summarize note** | Insert summary at end |
-| **Glyph: jump to MI summary** | Go to last Glyph block |
-| **Glyph: analyze active note** | Quick notice |
-| **Glyph: suggest tags** | Copy-friendly tag list |
+1. **[glyph-sO](https://github.com/FlokeStudio/glyph-sO)** — search `шаурма` / `shawarma` / wrong layout → open the note.  
+2. **glyph-miO** — **Analyze** → check draft → **Insert summary**.  
+3. Later — **Jump to MI summary** to re-read the recap.
+
+Install sO into `.obsidian/plugins/glyph-s-o/` the same way as miO.
+
+---
+
+## Settings
+
+| Setting | Meaning |
+|---------|---------|
+| **Enable Ollama** | Use local LLM for summaries when available |
+| **Ollama URL** | Usually `http://127.0.0.1:11434` |
+| **Model** | Must match `ollama list` (e.g. `llama3.2`) |
+
+---
+
+## Troubleshooting
+
+### “Where did my summary go?”
+
+At the **bottom of the same note** you had open. Use **Go to summary** or search inside the note for `Glyph MI-O` or `glyph-miO-summary`.
+
+### Summary is only statistics / tags
+
+Ollama failed or is disabled — you get **extractive** text (real sentences from the note, compressed). Enable Ollama for a more “written” paraphrase.
+
+### Panel says “Open a markdown note first”
+
+Click inside a note tab, not empty pane or graph view.
+
+### Plugin error on load
+
+Folder must be **`glyph-mi-o`**. Do not put a `vendor/` folder — this release is a single `main.js`.
 
 ---
 
 ## Technical
 
-- Offline: extractive sentence ranking over note body.
-- Optional: Ollama JSON `{"summary","tags"}`.
-- Related: [glyph-mi](https://github.com/FlokeStudio/glyph-mi) (Senza) · [glyph-sO](https://github.com/FlokeStudio/glyph-sO) (search).
+- **Offline:** strip markdown → score sentences → pick top sentences → join as summary.
+- **Ollama:** prompt returns JSON `{"summary":"…","tags":["…"]}`.
+- **Senza sibling:** [glyph-mi](https://github.com/FlokeStudio/glyph-mi) (music metadata, not Obsidian).
 
-GPL-3.0 · Floke Studio
+Obsidian ≥ 1.5.0.
+
+---
+
+## License
+
+GPL-3.0 · [Floke Studio](https://github.com/FlokeStudio)
