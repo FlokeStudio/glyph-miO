@@ -20,4 +20,39 @@
   background: var(--interactive-accent);
   color: var(--text-on-accent);
   font-size: 0.8em;
+  border: none;
+  cursor: pointer;
+}
+
+.glyph-mio-panel .modal-content {
+  padding: 1.25em;
+  min-width: min(480px, 92vw);
+}
+
+.glyph-mio-lead {
+  opacity: 0.85;
+  font-size: 0.9em;
+  margin-bottom: 1em;
+}
+
+.glyph-mio-stats {
+  padding: 0.75em;
+  border-radius: 8px;
+  background: var(--background-secondary);
+  margin-bottom: 0.75em;
+  font-size: 0.9em;
+  line-height: 1.5;
+}
+
+.glyph-mio-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5em;
+  margin: 0.75em 0;
+}
+
+.glyph-mio-help {
+  font-size: 0.78em;
+  opacity: 0.7;
+  margin-top: 1em;
 }
