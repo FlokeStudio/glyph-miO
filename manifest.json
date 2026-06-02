@@ -1,0 +1,10 @@
+{
+  "id": "glyph-mi-o",
+  "name": "glyph-miO 2.3",
+  "version": "2.3.0",
+  "minAppVersion": "1.5.0",
+  "description": "Metadata Intelligence for Obsidian — tags, summaries, note metadata (offline + optional Ollama).",
+  "author": "Floke Studio",
+  "authorUrl": "https://github.com/FlokeStudio",
+  "isDesktopOnly": false
+}
