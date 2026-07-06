@@ -21,7 +21,7 @@
 <p align="center">
   <a href="README.ru.md">🇷🇺 Русская документация</a>
   ·
-  <a href="docs/index.html">Mini landing</a>
+  <a href="https://flokestudio.github.io/glyph-miO/">Site</a>
   ·
   <a href="https://github.com/FlokeStudio/glyph-sO">glyph-sO</a> (vault search)
   ·
