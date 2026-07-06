@@ -7,7 +7,6 @@ const {
   MarkdownView,
 } = require('obsidian');
 
-/* --- inlined Ollama (no vendor/) --- */
 const DEFAULT_OLLAMA_URL = 'http://127.0.0.1:11434';
 const DEFAULT_OLLAMA_MODEL = 'llama3.2';
 

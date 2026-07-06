@@ -1,7 +1,8 @@
-# glyph-miO 2.3-O
+# glyph-miO Repository Note
 
-Бренд: **glyph-miO** · папка на диске: `glyph-mio` (до переименования в `glyph-miO`).
+`glyph-miO` is the Obsidian metadata intelligence plugin in the Glyph 2.3 family.
 
-Obsidian Metadata Intelligence — см. [README.md](README.md).
-
-Родительский индекс: [../GLYPH.md](../GLYPH.md)
+- Main docs: `README.md`
+- Mini landing: `docs/index.html`
+- Shared search engine: [`glyph-s`](https://github.com/FlokeStudio/glyph-s)
+- Companion plugin: [`glyph-sO`](https://github.com/FlokeStudio/glyph-sO)
