@@ -3,42 +3,195 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>glyph-miO 2.7</title>
+  <title>glyph-miO 2.7 — Metadata Intelligence for Obsidian</title>
+  <meta name="description" content="Summarize notes, suggest tags, and analyze metadata in Obsidian — offline-first with optional Ollama enhancement.">
   <style>
-    :root { color-scheme: dark; }
-    body { margin: 0; font-family: Inter, Segoe UI, Arial, sans-serif; background: radial-gradient(circle at 24% 16%, #211738 0, #13111f 46%, #0e0d18 100%); color: #ebe9ff; }
-    .wrap { max-width: 920px; margin: 0 auto; padding: 52px 20px; }
-    .card { border: 1px solid #2f2a4e; border-radius: 18px; padding: 30px; background: rgba(18, 17, 31, 0.86); backdrop-filter: blur(3px); }
-    .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
-    .brand img { width: 46px; height: 46px; }
-    h1 { margin: 0 0 8px; font-size: 34px; }
-    p { color: #c6c4e2; line-height: 1.58; margin: 0 0 10px; }
-    .caps { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 4px; }
-    .cap { border: 1px solid #3a355d; border-radius: 999px; padding: 6px 10px; font-size: 12px; color: #d7d4ff; }
-    .links { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
-    a { color: #d9d6ff; text-decoration: none; border: 1px solid #3f3a64; padding: 10px 14px; border-radius: 10px; }
+    :root {
+      color-scheme: dark;
+      --bg: #0d0f12;
+      --bg-elevated: #14181e;
+      --bg-card: #181c24;
+      --border: #2a313c;
+      --text: #e8eaed;
+      --muted: #9aa3b2;
+      --accent: #6eb5ff;
+      --accent-dim: rgba(110, 181, 255, 0.12);
+      --warm: #e8b86d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .nav {
+      display: flex; justify-content: space-between; align-items: center;
+      max-width: 1080px; margin: 0 auto; padding: 20px 24px;
+    }
+    .nav-links { display: flex; gap: 20px; font-size: 14px; }
+    .nav-links a { color: var(--muted); }
+    .hero {
+      text-align: center; padding: 72px 24px 56px;
+      background: radial-gradient(ellipse 80% 60% at 50% -10%, rgba(110,181,255,0.08), transparent);
+    }
+    .hero-brand { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-bottom: 28px; }
+    .hero-brand img { width: 64px; height: 64px; }
+    .hero-brand span { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+    .hero h1 { font-size: clamp(2.2rem, 5vw, 3.4rem); font-weight: 700; margin: 0 0 16px; letter-spacing: -0.02em; }
+    .hero .lead { max-width: 640px; margin: 0 auto 32px; font-size: 1.15rem; color: var(--muted); }
+    .cta-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
+    .btn {
+      display: inline-block; padding: 12px 22px; border-radius: 10px; font-weight: 600; font-size: 15px;
+      border: 1px solid var(--border); transition: background 0.15s;
+    }
+    .btn-primary { background: var(--accent); color: #0d0f12; border-color: var(--accent); }
+    .btn-primary:hover { background: #8ec8ff; text-decoration: none; }
+    .btn-secondary { background: var(--bg-card); color: var(--text); }
+    .btn-secondary:hover { background: var(--bg-elevated); text-decoration: none; }
+    .section { max-width: 1080px; margin: 0 auto; padding: 56px 24px; }
+    .section h2 { font-size: 1.75rem; margin: 0 0 12px; letter-spacing: -0.02em; }
+    .section .sub { color: var(--muted); margin: 0 0 32px; max-width: 680px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+    .card {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 28px;
+    }
+    .card h3 { margin: 0 0 8px; font-size: 1.1rem; }
+    .card p { margin: 0; color: var(--muted); font-size: 0.95rem; }
+    .badge-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+    .badge {
+      font-size: 12px; padding: 5px 10px; border-radius: 999px;
+      background: var(--accent-dim); color: var(--accent); border: 1px solid rgba(110,181,255,0.25);
+    }
+    .highlight {
+      background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 16px;
+      padding: 32px; margin-top: 24px;
+    }
+    .highlight h3 { margin: 0 0 16px; color: var(--warm); font-size: 1rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .highlight ul { margin: 0; padding-left: 20px; color: var(--muted); }
+    .highlight li { margin-bottom: 8px; }
+    code {
+      font-family: "Cascadia Code", Consolas, monospace; font-size: 0.88em;
+      background: rgba(0,0,0,0.35); padding: 2px 6px; border-radius: 4px;
+    }
+    .family { text-align: center; padding: 48px 24px 72px; border-top: 1px solid var(--border); }
+    .family p { color: var(--muted); margin-bottom: 16px; }
+    .family-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
+    .family-links a {
+      color: var(--text); border: 1px solid var(--border); padding: 8px 16px; border-radius: 8px; font-size: 14px;
+    }
+    .family-links a:hover { border-color: var(--accent); text-decoration: none; }
+    footer { text-align: center; padding: 24px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--border); }
   </style>
 </head>
 <body>
-  <main class="wrap">
-    <section class="card">
-      <div class="brand">
-        <img src="https://obsidian.md/images/obsidian-logo-gradient.svg" alt="Obsidian">
-        <strong>Obsidian Plugin</strong>
-      </div>
-      <h1>glyph-miO 2.7</h1>
-      <p>Metadata Intelligence for Obsidian with weighted tags, cached analysis, summary lifecycle modes, and optional Ollama enhancement.</p>
-      <div class="caps">
-        <span class="cap">weighted metadata ranking</span>
-        <span class="cap">cached analysis by mtime</span>
-        <span class="cap">append / replace-latest summary modes</span>
-      </div>
-      <div class="links">
-        <a href="https://github.com/FlokeStudio/glyph-miO">Repository</a>
-        <a href="https://github.com/FlokeStudio/glyph-sO">glyph-sO</a>
-        <a href="https://github.com/FlokeStudio/glyph-s">glyph-s engine</a>
-      </div>
-    </section>
-  </main>
+  <nav class="nav">
+    <strong>glyph-miO</strong>
+    <div class="nav-links">
+      <a href="https://github.com/FlokeStudio/glyph-miO">GitHub</a>
+      <a href="https://github.com/FlokeStudio/glyph-miO#user-section">Docs</a>
+      <a href="https://github.com/FlokeStudio/glyph-sO">glyph-sO</a>
+    </div>
+  </nav>
+
+  <header class="hero">
+    <div class="hero-brand">
+      <img src="https://obsidian.md/images/obsidian-logo-gradient.svg" alt="Obsidian">
+      <span>Obsidian Plugin</span>
+    </div>
+    <h1>Understand your notes.<br>Tags and summaries, instantly.</h1>
+    <p class="lead">glyph-miO analyzes the active note and inserts a compact summary block with suggested tags — algorithmic by default, optionally enhanced by a local Ollama model.</p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="https://github.com/FlokeStudio/glyph-miO/releases">Download 2.7</a>
+      <a class="btn btn-secondary" href="https://github.com/FlokeStudio/glyph-miO/blob/main/README.md">Read the docs</a>
+    </div>
+  </header>
+
+  <section class="section">
+    <h2>What’s new in 2.7</h2>
+    <p class="sub">Service-based architecture with smarter metadata scoring and flexible summary lifecycle.</p>
+    <div class="grid">
+      <article class="card">
+        <h3>Service modules</h3>
+        <p>Metadata and summary logic extracted into dedicated services — <code>services/metadata.js</code> and <code>services/summary.js</code> — for cleaner plugin code and easier testing.</p>
+      </article>
+      <article class="card">
+        <h3>Weighted tag scoring</h3>
+        <p>Tags are ranked by signal strength: title hits, heading frequency, body density, and existing frontmatter tags. Results cached by note mtime and size.</p>
+        <div class="badge-row"><span class="badge">cache by mtime</span></div>
+      </article>
+      <article class="card">
+        <h3>Summary lifecycle</h3>
+        <p>Choose how summary blocks behave: <code>append</code> adds a new block each time; <code>replace-latest</code> updates the most recent block in place.</p>
+        <div class="badge-row">
+          <span class="badge">append</span>
+          <span class="badge">replace-latest</span>
+        </div>
+      </article>
+      <article class="card">
+        <h3>Minimalist panel</h3>
+        <p>Refined spacing and typography in the MI panel — less visual noise, more focus on tags and summary text.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>How it works</h2>
+    <p class="sub">Always works offline. Ollama is optional enhancement, never a hard dependency.</p>
+    <div class="grid">
+      <article class="card">
+        <h3>1. Analyze</h3>
+        <p>Open the MI panel or run <strong>Glyph: analyze active note</strong>. The plugin tokenizes the note, scores candidate tags, and builds an extractive summary from key sentences.</p>
+      </article>
+      <article class="card">
+        <h3>2. Review tags</h3>
+        <p>Suggested tags appear ranked by relevance. Accept individually or apply all at once with <strong>Glyph: suggest tags</strong>.</p>
+      </article>
+      <article class="card">
+        <h3>3. Insert summary</h3>
+        <p><strong>Glyph: summarize note</strong> inserts a marked summary block at the top of the note. Jump back to it anytime with <strong>Glyph: jump to MI summary</strong>.</p>
+      </article>
+      <article class="card">
+        <h3>4. Optional Ollama</h3>
+        <p>When Ollama is running locally, the plugin attempts JSON-structured summary generation first. If unavailable or slow, it falls back to the offline algorithm seamlessly.</p>
+      </article>
+    </div>
+    <div class="highlight">
+      <h3>Commands</h3>
+      <ul>
+        <li><strong>Glyph: open MI panel</strong> — interactive tag and summary UI</li>
+        <li><strong>Glyph: summarize note</strong> — insert or update summary block</li>
+        <li><strong>Glyph: jump to MI summary</strong> — navigate to the summary marker</li>
+        <li><strong>Glyph: analyze active note</strong> — run analysis without opening panel</li>
+        <li><strong>Glyph: suggest tags</strong> — apply top-ranked tag suggestions</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>Install</h2>
+    <p class="sub">Copy the release into your vault and enable in Community plugins.</p>
+    <div class="highlight">
+      <ul>
+        <li>Folder: <code>.obsidian/plugins/glyph-mi-o/</code></li>
+        <li>Files: <code>manifest.json</code>, <code>main.js</code>, <code>styles.css</code>, <code>services/</code></li>
+        <li>Configure Ollama URL and model in Settings (optional)</li>
+      </ul>
+    </div>
+  </section>
+
+  <div class="family">
+    <p>Part of the Glyph 2.7 family</p>
+    <div class="family-links">
+      <a href="https://flokestudio.github.io/glyph-sO/">glyph-sO</a>
+      <a href="https://flokestudio.github.io/glyph-s/">glyph-s engine</a>
+      <a href="https://krwg.github.io/glyph-mi/">glyph-mi core</a>
+    </div>
+  </div>
+
+  <footer>GPL-3.0 · Floke Studio · glyph-miO 2.7</footer>
 </body>
 </html>
