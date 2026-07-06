@@ -6,6 +6,12 @@ const {
   Setting,
   MarkdownView,
 } = require('obsidian');
+const { computeMetadataCached } = require('./services/metadata');
+const {
+  SUMMARY_MARKER,
+  extractiveSummary,
+  buildSummaryBlock,
+} = require('./services/summary');
 
 const DEFAULT_OLLAMA_URL = 'http://127.0.0.1:11434';
 const DEFAULT_OLLAMA_MODEL = 'llama3.2';
@@ -75,93 +81,11 @@ async function ollamaJson(req, options) {
   return text ? parseJsonLoose(text) : null;
 }
 
-const SUMMARY_MARKER = '<!-- glyph-miO-summary -->';
-
-const STOP_WORDS = new Set([
-  'the', 'that', 'this', 'with', 'from', 'have', 'will', 'your', 'note', 'tags', 'and', 'for',
-  'для', 'как', 'это', 'при', 'что', 'или', 'эта', 'этот', 'того', 'быть', 'были', 'может',
-  'также', 'через', 'после', 'если', 'когда', 'только', 'уже', 'все', 'всё', 'его', 'ее', 'её',
-]);
-
-function stripForSummary(body) {
-  return String(body || '')
-    .replace(/^---[\s\S]*?---\n?/m, '')
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/!\[[^\]]*\]\([^)]+\)/g, ' ')
-    .replace(/\[\[([^\]|]+)(\|[^\]]+)?\]\]/g, '$1')
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-    .replace(/#{1,6}\s+/gm, '')
-    .replace(/[*_~>`]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function splitSentences(text) {
-  const parts = text
-    .split(/(?<=[.!?…])\s+|\n+/)
-    .map(function (s) {
-      return s.trim();
-    })
-    .filter(function (s) {
-      return s.length > 18;
-    });
-  return parts.length ? parts : [text.trim()];
-}
-
-function extractiveSummary(body, meta) {
-  const plain = stripForSummary(body);
-  if (!plain) return 'Заметка пуста — нечего пересказывать.';
-  const sentences = splitSentences(plain);
-  if (sentences.length <= 2) return sentences.join(' ');
-
-  const words = plain.toLowerCase().match(/[a-zа-яё0-9]{4,}/gi) || [];
-  const freq = new Map();
-  words.forEach(function (w) {
-    const k = w.toLowerCase();
-    if (!STOP_WORDS.has(k)) freq.set(k, (freq.get(k) || 0) + 1);
-  });
-  (meta.headings || []).forEach(function (h) {
-    String(h)
-      .toLowerCase()
-      .split(/\s+/)
-      .forEach(function (w) {
-        if (w.length > 3) freq.set(w, (freq.get(w) || 0) + 8);
-      });
-  });
-
-  const scored = sentences.map(function (s, i) {
-    const sw = s.toLowerCase().match(/[a-zа-яё0-9]{4,}/gi) || [];
-    let sc = 0;
-    sw.forEach(function (w) {
-      sc += freq.get(w) || 0;
-    });
-    if (i < 2) sc += 3;
-    return { s: s, sc: sc, i: i };
-  });
-  scored.sort(function (a, b) {
-    return b.sc - a.sc;
-  });
-
-  const picked = [];
-  const seen = new Set();
-  for (let pi = 0; pi < scored.length && picked.length < 4; pi++) {
-    const key = scored[pi].s.slice(0, 48);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    picked.push({ s: scored[pi].s, i: scored[pi].i });
-  }
-  picked.sort(function (a, b) {
-    return a.i - b.i;
-  });
-  return picked.map(function (p) {
-    return p.s;
-  }).join(' ');
-}
-
 const DEFAULT_SETTINGS = {
   ollamaUrl: DEFAULT_OLLAMA_URL,
   ollamaModel: DEFAULT_OLLAMA_MODEL,
   useOllama: true,
+  summaryMode: 'replace-latest',
 };
 
 class GlyphMiOSettingTab extends PluginSettingTab {
@@ -205,6 +129,20 @@ class GlyphMiOSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.ollamaModel)
           .onChange(async (v) => {
             this.plugin.settings.ollamaModel = v || DEFAULT_OLLAMA_MODEL;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName('Summary block mode')
+      .setDesc('append: add new block, replace-latest: update the latest block.')
+      .addDropdown((d) =>
+        d
+          .addOption('append', 'append')
+          .addOption('replace-latest', 'replace-latest')
+          .setValue(this.plugin.settings.summaryMode || 'replace-latest')
+          .onChange(async (v) => {
+            this.plugin.settings.summaryMode = v;
             await this.plugin.saveSettings();
           })
       );
@@ -258,7 +196,7 @@ class GlyphMiOPanel extends Modal {
       this.tagsEl.empty();
       return;
     }
-    const meta = this.plugin.algorithmicMeta(doc.file.basename, doc.body, doc.cache);
+    const meta = this.plugin.algorithmicMeta(doc.file, doc.body, doc.cache);
     this._meta = meta;
     this.statsEl.empty();
     this.statsEl.createEl('div', { text: 'Title: ' + meta.title });
@@ -310,6 +248,7 @@ class GlyphMiOPanel extends Modal {
 class GlyphMiOPlugin extends Plugin {
   async onload() {
     await this.loadSettings();
+    this._metaCache = new Map();
     this.addSettingTab(new GlyphMiOSettingTab(this.app, this));
     this.addRibbonIcon('sparkles', 'Glyph MI-O', () => this.openPanel());
     this.addCommand({
@@ -359,31 +298,8 @@ class GlyphMiOPlugin extends Plugin {
     return { file, body, cache };
   }
 
-  algorithmicMeta(basename, body, cache) {
-    const words = body.toLowerCase().match(/[a-z0-9а-яё]{4,}/g) || [];
-    const freq = new Map();
-    for (const w of words) freq.set(w, (freq.get(w) || 0) + 1);
-    const stop = /^(the|that|this|with|from|have|will|your|note|tags|для|как|это|при|что|или)$/i;
-    const tags = [...freq.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([w]) => w)
-      .filter((w) => !stop.test(w));
-    const headings = (cache && cache.headings ? cache.headings : [])
-      .map((h) => h.heading)
-      .slice(0, 8);
-    const links = cache && cache.links ? cache.links.length : 0;
-    let frontTags = [];
-    const rawTags = cache && cache.frontmatter && cache.frontmatter.tags;
-    if (Array.isArray(rawTags)) frontTags = rawTags.map(String);
-    else if (rawTags != null && rawTags !== '') frontTags = [String(rawTags)];
-    return {
-      title: basename.replace(/\.md$/i, ''),
-      tags: [...new Set([...frontTags, ...tags])].slice(0, 12),
-      headings,
-      links,
-      wordCount: words.length,
-    };
+  algorithmicMeta(file, body, cache) {
+    return computeMetadataCached(file, body, cache, { cache: this._metaCache });
   }
 
   async analyzeActiveNote() {
@@ -392,7 +308,7 @@ class GlyphMiOPlugin extends Plugin {
       new Notice('No active note');
       return;
     }
-    const meta = this.algorithmicMeta(doc.file.basename, doc.body, doc.cache);
+    const meta = this.algorithmicMeta(doc.file, doc.body, doc.cache);
     new Notice(
       'Glyph: ' + meta.tags.length + ' tags · ' + meta.links + ' links · ' + meta.wordCount + ' words'
     );
@@ -401,7 +317,7 @@ class GlyphMiOPlugin extends Plugin {
   async suggestTags() {
     const doc = await this.readActive();
     if (!doc) return;
-    const meta = this.algorithmicMeta(doc.file.basename, doc.body, doc.cache);
+    const meta = this.algorithmicMeta(doc.file, doc.body, doc.cache);
     const line = meta.tags.map((t) => '#' + t).join(' ');
     new Notice(line || 'No tags suggested');
   }
@@ -413,7 +329,7 @@ class GlyphMiOPlugin extends Plugin {
       new Notice('Откройте заметку / Open a note first');
       return null;
     }
-    const meta = this.algorithmicMeta(doc.file.basename, doc.body, doc.cache);
+    const meta = this.algorithmicMeta(doc.file, doc.body, doc.cache);
     const excerpt = doc.body.slice(0, 6000);
     let summaryText = null;
     let summaryTags = meta.tags;
@@ -477,15 +393,25 @@ class GlyphMiOPlugin extends Plugin {
     const view = this.app.workspace.getActiveViewOfType(MarkdownView);
     if (!view) return null;
     const editor = view.editor;
-    const insertAt = editor.lastLine() + 1;
-    const body =
-      '\n\n---\n' +
-      SUMMARY_MARKER +
-      '\n> [!summary] Glyph MI-O\n> ' +
-      text.replace(/\n/g, '\n> ') +
-      '\n';
-    const tagLine = tags.length ? '\n' + tags.map((t) => '#' + String(t).replace(/^#/, '')).join(' ') + '\n' : '\n';
-    editor.replaceRange(body + tagLine, { line: editor.lastLine(), ch: editor.getLine(editor.lastLine()).length });
+    const fullText = editor.getValue();
+    const summary = buildSummaryBlock(text, tags, this.settings.summaryMode || 'replace-latest');
+    let insertAt = editor.lastLine() + 1;
+    if (summary.mode === 'replace-latest') {
+      const markerIdx = fullText.lastIndexOf(summary.marker);
+      if (markerIdx >= 0) {
+        const before = fullText.slice(0, markerIdx);
+        const lastBreak = fullText.indexOf('\n---', markerIdx);
+        const tailStart = lastBreak >= 0 ? fullText.indexOf('\n', lastBreak + 1) : -1;
+        const after = tailStart >= 0 ? fullText.slice(tailStart + 1) : '';
+        const nextValue = before.trimEnd() + summary.block + (after ? '\n' + after.trimStart() : '');
+        editor.setValue(nextValue);
+        const line = editor.lastLine();
+        editor.setCursor({ line, ch: 0 });
+        editor.scrollIntoView({ from: { line: Math.max(0, line - 4), ch: 0 }, to: { line, ch: 0 } }, true);
+        return { line };
+      }
+    }
+    editor.replaceRange(summary.block, { line: editor.lastLine(), ch: editor.getLine(editor.lastLine()).length });
     const cursorLine = insertAt + 2;
     editor.setCursor({ line: cursorLine, ch: 0 });
     editor.scrollIntoView(

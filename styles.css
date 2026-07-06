@@ -25,8 +25,8 @@
 }
 
 .glyph-mio-panel .modal-content {
-  padding: 1.25em;
-  min-width: min(480px, 92vw);
+  padding: 1em;
+  min-width: min(460px, 92vw);
 }
 
 .glyph-mio-lead {
@@ -36,7 +36,7 @@
 }
 
 .glyph-mio-stats {
-  padding: 0.75em;
+  padding: 0.62em;
   border-radius: 8px;
   background: var(--background-secondary);
   margin-bottom: 0.75em;
@@ -47,8 +47,8 @@
 .glyph-mio-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5em;
-  margin: 0.75em 0;
+  gap: 0.42em;
+  margin: 0.55em 0;
 }
 
 .glyph-mio-help {
@@ -64,8 +64,8 @@
 }
 
 .glyph-mio-summary-preview {
-  margin-top: 0.75em;
-  padding: 0.65em 0.75em;
+  margin-top: 0.55em;
+  padding: 0.5em 0.62em;
   border-radius: 8px;
   background: var(--background-secondary);
   font-size: 0.88em;
