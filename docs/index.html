@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>glyph-miO 2.7 — Metadata Intelligence for Obsidian</title>
+  <title>glyph-miO 2.7.1 — Metadata Intelligence for Obsidian</title>
   <meta name="description" content="Summarize notes, suggest tags, and analyze metadata in Obsidian — offline-first with optional Ollama enhancement.">
   <style>
     :root {
@@ -105,35 +105,36 @@
     <h1>Understand your notes.<br>Tags and summaries, instantly.</h1>
     <p class="lead">glyph-miO analyzes the active note and inserts a compact summary block with suggested tags — algorithmic by default, optionally enhanced by a local Ollama model.</p>
     <div class="cta-row">
-      <a class="btn btn-primary" href="https://github.com/FlokeStudio/glyph-miO/releases">Download 2.7</a>
+      <a class="btn btn-primary" href="https://github.com/FlokeStudio/glyph-miO/releases">Download 2.7.1</a>
       <a class="btn btn-secondary" href="https://github.com/FlokeStudio/glyph-miO/blob/main/README.md">Read the docs</a>
     </div>
   </header>
 
   <section class="section">
-    <h2>What’s new in 2.7</h2>
-    <p class="sub">Service-based architecture with smarter metadata scoring and flexible summary lifecycle.</p>
+    <h2>What’s new in 2.7.1</h2>
+    <p class="sub">Safer cache keys, explainable tags, Ollama status, none/off summary mode, and optional diff preview.</p>
     <div class="grid">
       <article class="card">
         <h3>Service modules</h3>
-        <p>Metadata and summary logic extracted into dedicated services — <code>services/metadata.js</code> and <code>services/summary.js</code> — for cleaner plugin code and easier testing.</p>
+        <p>Local MI logic in <code>services/*</code> — roadmap to consume glyph-mi <code>notes</code> via an adapter stub without dropping the offline path.</p>
       </article>
       <article class="card">
         <h3>Weighted tag scoring</h3>
-        <p>Tags are ranked by signal strength: title hits, heading frequency, body density, and existing frontmatter tags. Results cached by note mtime and size.</p>
-        <div class="badge-row"><span class="badge">cache by mtime</span></div>
+        <p>Tags ranked by title, headings, and body — with relevance % and tooltip reasons. Cache key is always path + mtime + size + content hash.</p>
+        <div class="badge-row"><span class="badge">path in cache key</span></div>
       </article>
       <article class="card">
         <h3>Summary lifecycle</h3>
-        <p>Choose how summary blocks behave: <code>append</code> adds a new block each time; <code>replace-latest</code> updates the most recent block in place.</p>
+        <p><code>append</code>, <code>replace-latest</code>, plus <code>none</code>/<code>off</code> for preview-only. Optional Apply/Cancel diff before writing.</p>
         <div class="badge-row">
           <span class="badge">append</span>
           <span class="badge">replace-latest</span>
+          <span class="badge">none / off</span>
         </div>
       </article>
       <article class="card">
-        <h3>Minimalist panel</h3>
-        <p>Refined spacing and typography in the MI panel — less visual noise, more focus on tags and summary text.</p>
+        <h3>Ollama status</h3>
+        <p>Configurable timeout (default 12s), status bar + panel indicator for online vs offline fallback. RU labels for commands and settings.</p>
       </article>
     </div>
   </section>

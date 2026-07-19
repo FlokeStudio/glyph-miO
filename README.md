@@ -2,7 +2,7 @@
   <a href="https://obsidian.md/"><img src="https://obsidian.md/images/obsidian-logo-gradient.svg" width="72" alt="Obsidian" /></a>
 </p>
 
-<h1 align="center">glyph-miO 2.7</h1>
+<h1 align="center">glyph-miO 2.7.1</h1>
 
 <p align="center">
   <strong>Metadata Intelligence for Obsidian</strong><br>
@@ -24,42 +24,52 @@
 
 **glyph-miO** is an Obsidian community plugin that analyzes the **active note** and helps you organize knowledge faster:
 
-- **Extractive summaries** — a compact block of key sentences inserted at the top of the note
-- **Tag suggestions** — ranked by relevance to title, headings, and body text
+- **Extractive summaries** — a compact callout block inserted at the end of the note
+- **Tag suggestions** — ranked by relevance to title, headings, and body, with scores/tooltips
 - **Offline by default** — no cloud, no API keys; optional local Ollama enhancement
 
-It pairs naturally with [**glyph-sO**](https://github.com/FlokeStudio/glyph-sO): search finds notes across the vault; glyph-miO understands the note you’re working on right now.
+It pairs naturally with [**glyph-sO**](https://github.com/FlokeStudio/glyph-sO): search finds notes across the vault; glyph-miO understands the note you’re working on right now. Long-term UI chrome aims to share a **glyph-ui** styling kit with sO.
 
-### What’s new in 2.7
+### What’s new in 2.7.1
 
-**Service-based architecture** — core logic split into focused modules:
+- **Safer metadata cache key** — always includes vault path plus mtime, size, and a short content hash (documented in `services/metadata.js`)
+- **Summary mode `none` / `off`** — preview in the MI panel only; write when you Insert / run summarize explicitly
+- **Ollama timeout setting** — configurable seconds (default **12**), used for generate calls
+- **Tag explainability** — relevance % on chips + tooltip (title / heading / body / frontmatter)
+- **Ollama status** — status bar + panel pill (online / offline fallback / disabled)
+- **Optional diff preview** — Apply / Cancel modal before insert or replace
+- **RU labels** — commands and settings follow Obsidian language when set to Russian
+- **Adapter stub** — `services/glyph-mi-notes-adapter.js` ready to consume glyph-mi `notes` without breaking the local offline path
+
+### What’s in 2.7
+
+**Service-based architecture** — core logic in focused modules:
 
 | Service | Responsibility |
 |---------|----------------|
-| `services/metadata.js` | Weighted tag scoring, stop-word filtering, analysis cache |
-| `services/summary.js` | Sentence extraction, summary block formatting, marker lifecycle |
+| `services/metadata.js` | Weighted tag scoring, stop-words, cache key |
+| `services/summary.js` | Sentence extraction, block formatting, lifecycle modes |
+| `services/i18n.js` | EN/RU strings for commands and settings |
+| `services/glyph-mi-notes-adapter.js` | Stub toward shared glyph-mi `notes` contract |
 
-**Weighted metadata scoring** — tags are ranked using multiple signals:
+**Weighted metadata scoring** — tags ranked by:
 
 - Matches in the note title (highest weight)
 - Frequency in headings
 - Density in body paragraphs
-- Existing frontmatter / inline tags (boost)
-
-Results are **cached** by note path, modification time, and content size — re-analysis is instant when nothing changed.
+- Existing frontmatter tags (boost)
 
 **Summary lifecycle modes:**
 
 | Mode | Behavior |
 |------|----------|
-| `append` | Each summarize action adds a new `<!-- glyph-mi summary -->` block |
+| `append` | Each summarize/insert adds a new `<!-- glyph-miO-summary -->` block |
 | `replace-latest` | Updates the most recent summary block in place (default) |
-
-**Cleaner UI** — refined panel spacing and typography for a minimalist Obsidian-native feel.
+| `none` / `off` | Do not auto-write; show draft in the panel; insert only via Insert / summarize command |
 
 ### Install
 
-1. Download the latest release from [Releases](https://github.com/FlokeStudio/glyph-miO/releases).
+1. Download the latest release from [Releases](https://github.com/FlokeStudio/glyph-miO/releases) (or clone `main`).
 2. Extract into your vault:
 
 ```
@@ -69,20 +79,22 @@ Results are **cached** by note path, modification time, and content size — re-
 ├── styles.css
 └── services/
     ├── metadata.js
-    └── summary.js
+    ├── summary.js
+    ├── i18n.js
+    └── glyph-mi-notes-adapter.js
 ```
 
 3. Enable **glyph-miO** in **Settings → Community plugins**.
 
 ### Commands
 
-| Command | What it does |
-|---------|--------------|
-| **Glyph: open MI panel** | Interactive panel with tags and summary preview |
-| **Glyph: summarize note** | Insert or update the summary block |
-| **Glyph: jump to MI summary** | Cursor jumps to the `<!-- glyph-mi summary -->` marker |
-| **Glyph: analyze active note** | Run analysis without opening the panel |
-| **Glyph: suggest tags** | Apply top-ranked tag suggestions to the note |
+| Command (EN) | Command (RU) | What it does |
+|--------------|--------------|--------------|
+| **Glyph: open MI panel** | **Glyph: открыть панель MI** | Interactive panel with tags and summary preview |
+| **Glyph: summarize note** | **Glyph: пересказ заметки** | Insert or update the summary block (respects mode + diff preview) |
+| **Glyph: jump to MI summary** | **Glyph: перейти к саммари MI** | Cursor jumps to the summary marker |
+| **Glyph: analyze active note** | **Glyph: анализ активной заметки** | Run analysis without opening the panel |
+| **Glyph: suggest tags** | **Glyph: предложить теги** | Show top-ranked tags with relevance % |
 
 ### Settings
 
@@ -91,69 +103,69 @@ Results are **cached** by note path, modification time, and content size — re-
 | **Enable Ollama** | Try local LLM for JSON-structured summaries (default: on) |
 | **Ollama URL** | Base URL, default `http://127.0.0.1:11434` |
 | **Model** | Ollama model name, default `llama3.2` |
-| **Summary block mode** | `append` or `replace-latest` |
+| **Ollama timeout (seconds)** | Abort generation after N seconds (default **12**), then offline fallback |
+| **Summary block mode** | `append`, `replace-latest`, `none`, or `off` |
+| **Diff preview before Apply** | Show before/after modal (Apply / Cancel) before writing |
 
 ### How analysis works
 
-1. **Offline path (always available):** the plugin tokenizes the note, scores tag candidates, selects key sentences for the summary, and formats a marked block.
-2. **Ollama path (optional):** if Ollama responds within the timeout, the plugin requests a JSON summary with tags. On failure or timeout, it **falls back** to the offline algorithm — no error dialogs, no broken workflow.
+1. **Offline path (always available):** tokenize → score tags with reasons → pick key sentences → format marked block.
+2. **Ollama path (optional):** if Ollama responds within the configured timeout, request JSON summary + tags. On failure or timeout, **fall back** to the offline algorithm.
+
+### Architecture note (local vs glyph-mi)
+
+MI logic for this plugin currently lives in local **`services/*`**. Roadmap: consume the shared [glyph-mi](https://github.com/krwg/glyph-mi) **`notes`** module for a common contract (`confidence` / `sources`) via the thin adapter stub — without removing the offline path. Shared **glyph-ui** styling with glyph-sO is a parallel goal.
 
 ### Example summary block
 
 ```markdown
-<!-- glyph-mi summary -->
-**Summary:** This note covers project planning for Q3, including milestone
-definitions and resource allocation across three teams.
+---
+<!-- glyph-miO-summary -->
+> [!summary] Glyph MI-O
+> This note covers project planning for Q3, including milestone
+> definitions and resource allocation across three teams.
 
-**Tags:** #projects #planning #q3
-<!-- /glyph-mi summary -->
+#projects #planning #q3
 ```
 
 ---
 
 ## GitHub / Dev section
 
-### Architecture (2.7)
+### Architecture (2.7.1)
 
 ```
-main.js                 # Obsidian plugin: UI, Ollama client, commands
-services/metadata.js    # computeMetadataCached, weighted scoring
-services/summary.js     # extractiveSummary, buildSummaryBlock, SUMMARY_MARKER
-styles.css              # .glyph-mio-panel styles
+main.js                              # Plugin UI, Ollama client, commands, status bar
+services/metadata.js                 # computeMetadataCached, cache key, tagDetails
+services/summary.js                  # extractiveSummary, buildSummaryBlock, none/off
+services/i18n.js                     # EN/RU labels
+services/glyph-mi-notes-adapter.js   # stub → future glyph-mi notes module
+styles.css                           # panel, status, diff modal
 ```
 
 ### Metadata cache key
 
-`computeMetadataCached(doc, settings)` keys the cache by:
+`keyForDoc(file, body)` is always:
 
-- File path
-- `stat.mtime` (modification time)
-- Content length
+```text
+${path}|${mtime}|${size}|${contentHash}
+```
 
-Cache invalidates automatically when the note is edited.
+Path is mandatory (collision-safe across notes). See JSDoc in `services/metadata.js`.
 
 ### Ollama integration
 
 - Health check: `GET /api/tags`
 - Generation: `POST /api/generate` with `format: "json"`
-- Timeout: 12 seconds (configurable in code)
+- Timeout: settings **Ollama timeout (seconds)** (default 12)
+- Status: status bar item + MI panel pill
 - Graceful fallback to `extractiveSummary()` on any failure
-
-### Project layout
-
-| Path | Role |
-|------|------|
-| `main.js` | Plugin class, panel modal, settings tab, command registration |
-| `services/metadata.js` | Tag scoring engine with `STOP_WORDS` filter |
-| `services/summary.js` | Sentence splitting, summary block builder |
-| `.github/workflows/release.yml` | Packages `services/` into release zip |
-| `.github/workflows/pages.yml` | Deploys `docs/` to GitHub Pages |
 
 ### Related repositories
 
 | Repo | Role |
 |------|------|
-| [glyph-mi](https://github.com/krwg/glyph-mi) | Universal MI core (Senza, Cultiva modules) |
+| [glyph-mi](https://github.com/krwg/glyph-mi) | Universal MI core (Senza, Cultiva, future `notes`) |
 | [glyph-sO](https://github.com/FlokeStudio/glyph-sO) | Full-text search for Obsidian |
 | [glyph-s](https://github.com/FlokeStudio/glyph-s) | Shared search engine |
 

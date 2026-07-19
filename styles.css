@@ -32,7 +32,40 @@
 .glyph-mio-lead {
   opacity: 0.85;
   font-size: 0.9em;
-  margin-bottom: 1em;
+  margin-bottom: 0.75em;
+}
+
+.glyph-mio-ollama-status {
+  margin-bottom: 0.75em;
+}
+
+.glyph-mio-status-pill {
+  display: inline-block;
+  font-size: 0.78em;
+  padding: 0.2em 0.55em;
+  border-radius: 4px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+}
+
+.glyph-mio-status-online,
+.glyph-mio-status-bar.glyph-mio-status-online {
+  color: var(--text-success, var(--color-green, #3ecf8e));
+}
+
+.glyph-mio-status-offline,
+.glyph-mio-status-bar.glyph-mio-status-offline {
+  color: var(--text-muted);
+}
+
+.glyph-mio-status-disabled,
+.glyph-mio-status-bar.glyph-mio-status-disabled {
+  opacity: 0.75;
+}
+
+.glyph-mio-status-bar {
+  cursor: pointer;
+  font-size: 0.85em;
 }
 
 .glyph-mio-stats {
@@ -81,4 +114,39 @@
 .glyph-mio-preview-text {
   max-height: 8em;
   overflow-y: auto;
+}
+
+.glyph-mio-diff .modal-content {
+  min-width: min(640px, 94vw);
+}
+
+.glyph-mio-diff-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75em;
+  margin: 0.75em 0;
+}
+
+@media (max-width: 640px) {
+  .glyph-mio-diff-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.glyph-mio-diff-label {
+  font-size: 0.78em;
+  opacity: 0.7;
+  margin-bottom: 0.35em;
+}
+
+.glyph-mio-diff-pre {
+  margin: 0;
+  max-height: 16em;
+  overflow: auto;
+  padding: 0.55em 0.65em;
+  border-radius: 8px;
+  background: var(--background-secondary);
+  font-size: 0.78em;
+  white-space: pre-wrap;
+  word-break: break-word;
 }

@@ -6,15 +6,19 @@ const {
   Setting,
   MarkdownView,
 } = require('obsidian');
-const { computeMetadataCached } = require('./services/metadata');
+const { analyzeNote } = require('./services/glyph-mi-notes-adapter');
 const {
   SUMMARY_MARKER,
   extractiveSummary,
   buildSummaryBlock,
+  isPreviewOnlyMode,
+  resolveWriteMode,
 } = require('./services/summary');
+const { t, detectLang, reasonLabel } = require('./services/i18n');
 
 const DEFAULT_OLLAMA_URL = 'http://127.0.0.1:11434';
 const DEFAULT_OLLAMA_MODEL = 'llama3.2';
+const DEFAULT_OLLAMA_TIMEOUT_SEC = 12;
 
 function parseJsonLoose(text) {
   const raw = String(text || '').trim();
@@ -43,7 +47,13 @@ async function ollamaGenerate(req, options) {
   options = options || {};
   const baseUrl = options.ollamaUrl || DEFAULT_OLLAMA_URL;
   const model = options.model || DEFAULT_OLLAMA_MODEL;
-  const timeout = options.timeoutMs != null ? options.timeoutMs : 12000;
+  const timeoutSec =
+    options.timeoutSec != null
+      ? Number(options.timeoutSec)
+      : options.timeoutMs != null
+        ? Number(options.timeoutMs) / 1000
+        : DEFAULT_OLLAMA_TIMEOUT_SEC;
+  const timeout = Math.max(1, timeoutSec) * 1000;
   const controller = new AbortController();
   const timer = setTimeout(function () {
     controller.abort();
@@ -74,10 +84,7 @@ async function ollamaGenerate(req, options) {
 }
 
 async function ollamaJson(req, options) {
-  const text = await ollamaGenerate(
-    Object.assign({}, req, { format: 'json' }),
-    options
-  );
+  const text = await ollamaGenerate(Object.assign({}, req, { format: 'json' }), options);
   return text ? parseJsonLoose(text) : null;
 }
 
@@ -85,8 +92,54 @@ const DEFAULT_SETTINGS = {
   ollamaUrl: DEFAULT_OLLAMA_URL,
   ollamaModel: DEFAULT_OLLAMA_MODEL,
   useOllama: true,
+  ollamaTimeoutSec: DEFAULT_OLLAMA_TIMEOUT_SEC,
   summaryMode: 'replace-latest',
+  previewBeforeApply: true,
 };
+
+function formatTagTooltip(detail, lang) {
+  if (!detail) return '';
+  const pct = Math.round((detail.relevance != null ? detail.relevance : 0) * 100);
+  const reasons = (detail.reasons || [])
+    .map((r) => reasonLabel(r, lang))
+    .join(', ');
+  return t('relevanceTitle', lang) + ': ' + pct + '%' + (reasons ? ' — ' + reasons : '');
+}
+
+class SummaryDiffModal extends Modal {
+  constructor(app, plugin, opts) {
+    super(app);
+    this.plugin = plugin;
+    this.opts = opts || {};
+  }
+
+  onOpen() {
+    const { contentEl } = this;
+    const lang = this.plugin.lang();
+    contentEl.addClass('glyph-mio-diff');
+    contentEl.createEl('h2', { text: t('diffTitle', lang) });
+
+    const grid = contentEl.createEl('div', { cls: 'glyph-mio-diff-grid' });
+    const beforeCol = grid.createEl('div', { cls: 'glyph-mio-diff-col' });
+    beforeCol.createEl('div', { cls: 'glyph-mio-diff-label', text: t('diffBefore', lang) });
+    beforeCol.createEl('pre', { cls: 'glyph-mio-diff-pre', text: this.opts.beforeText || '' });
+
+    const afterCol = grid.createEl('div', { cls: 'glyph-mio-diff-col' });
+    afterCol.createEl('div', { cls: 'glyph-mio-diff-label', text: t('diffAfter', lang) });
+    afterCol.createEl('pre', { cls: 'glyph-mio-diff-pre', text: this.opts.afterText || '' });
+
+    const actions = contentEl.createEl('div', { cls: 'glyph-mio-actions' });
+    const self = this;
+    actions.createEl('button', { text: t('diffApply', lang), cls: 'mod-cta' }).addEventListener('click', () => {
+      self.close();
+      if (typeof self.opts.onApply === 'function') self.opts.onApply();
+    });
+    actions.createEl('button', { text: t('diffCancel', lang) }).addEventListener('click', () => {
+      self.close();
+      if (typeof self.opts.onCancel === 'function') self.opts.onCancel();
+    });
+  }
+}
 
 class GlyphMiOSettingTab extends PluginSettingTab {
   constructor(app, plugin) {
@@ -96,35 +149,38 @@ class GlyphMiOSettingTab extends PluginSettingTab {
 
   display() {
     const { containerEl } = this;
+    const lang = this.plugin.lang();
     containerEl.empty();
-    containerEl.createEl('h2', { text: 'Glyph MI-O 2.3' });
+    containerEl.createEl('h2', { text: t('settingsTitle', lang) + ' 2.7' });
 
     new Setting(containerEl)
-      .setName('Enable Ollama')
-      .setDesc('Optional local LLM for summaries (algorithmic mode works without it).')
-      .addToggle((t) =>
-        t.setValue(this.plugin.settings.useOllama).onChange(async (v) => {
+      .setName(t('enableOllama', lang))
+      .setDesc(t('enableOllamaDesc', lang))
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.useOllama).onChange(async (v) => {
           this.plugin.settings.useOllama = v;
           await this.plugin.saveSettings();
+          this.plugin.refreshOllamaStatus();
         })
       );
 
     new Setting(containerEl)
-      .setName('Ollama URL')
-      .addText((t) =>
-        t
+      .setName(t('ollamaUrl', lang))
+      .addText((text) =>
+        text
           .setPlaceholder(DEFAULT_OLLAMA_URL)
           .setValue(this.plugin.settings.ollamaUrl)
           .onChange(async (v) => {
             this.plugin.settings.ollamaUrl = v || DEFAULT_OLLAMA_URL;
             await this.plugin.saveSettings();
+            this.plugin.refreshOllamaStatus();
           })
       );
 
     new Setting(containerEl)
-      .setName('Model')
-      .addText((t) =>
-        t
+      .setName(t('ollamaModel', lang))
+      .addText((text) =>
+        text
           .setPlaceholder(DEFAULT_OLLAMA_MODEL)
           .setValue(this.plugin.settings.ollamaModel)
           .onChange(async (v) => {
@@ -134,17 +190,44 @@ class GlyphMiOSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName('Summary block mode')
-      .setDesc('append: add new block, replace-latest: update the latest block.')
+      .setName(t('ollamaTimeout', lang))
+      .setDesc(t('ollamaTimeoutDesc', lang))
+      .addText((text) =>
+        text
+          .setPlaceholder(String(DEFAULT_OLLAMA_TIMEOUT_SEC))
+          .setValue(String(this.plugin.settings.ollamaTimeoutSec ?? DEFAULT_OLLAMA_TIMEOUT_SEC))
+          .onChange(async (v) => {
+            const n = parseInt(String(v).trim(), 10);
+            this.plugin.settings.ollamaTimeoutSec =
+              Number.isFinite(n) && n > 0 ? n : DEFAULT_OLLAMA_TIMEOUT_SEC;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName(t('summaryMode', lang))
+      .setDesc(t('summaryModeDesc', lang))
       .addDropdown((d) =>
         d
           .addOption('append', 'append')
           .addOption('replace-latest', 'replace-latest')
+          .addOption('none', 'none')
+          .addOption('off', 'off')
           .setValue(this.plugin.settings.summaryMode || 'replace-latest')
           .onChange(async (v) => {
             this.plugin.settings.summaryMode = v;
             await this.plugin.saveSettings();
           })
+      );
+
+    new Setting(containerEl)
+      .setName(t('previewBeforeApply', lang))
+      .setDesc(t('previewBeforeApplyDesc', lang))
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.previewBeforeApply !== false).onChange(async (v) => {
+          this.plugin.settings.previewBeforeApply = v;
+          await this.plugin.saveSettings();
+        })
       );
   }
 }
@@ -157,42 +240,58 @@ class GlyphMiOPanel extends Modal {
 
   onOpen() {
     const { contentEl } = this;
+    const lang = this.plugin.lang();
     contentEl.addClass('glyph-mio-panel');
-    contentEl.createEl('h2', { text: 'glyph-miO 2.3' });
+    contentEl.createEl('h2', { text: t('panelTitle', lang) + ' 2.7' });
     contentEl.createEl('p', {
       cls: 'glyph-mio-lead',
-      text: 'Metadata Intelligence for the active note — offline; Ollama optional for summaries.',
+      text: t('panelLead', lang),
     });
+    this.ollamaStatusEl = contentEl.createEl('div', { cls: 'glyph-mio-ollama-status' });
     this.statsEl = contentEl.createEl('div', { cls: 'glyph-mio-stats' });
     this.tagsEl = contentEl.createEl('div', { cls: 'glyph-mio-tags' });
     const actions = contentEl.createEl('div', { cls: 'glyph-mio-actions' });
     const self = this;
-    actions.createEl('button', { text: 'Analyze', cls: 'mod-cta' }).addEventListener('click', () =>
+    actions.createEl('button', { text: t('analyze', lang), cls: 'mod-cta' }).addEventListener('click', () =>
       self.refresh()
     );
-    actions.createEl('button', { text: 'Insert summary' }).addEventListener('click', () =>
+    actions.createEl('button', { text: t('insertSummary', lang) }).addEventListener('click', () =>
       self.insertFromPanel()
     );
-    actions.createEl('button', { text: 'Go to summary' }).addEventListener('click', () =>
+    actions.createEl('button', { text: t('goToSummary', lang) }).addEventListener('click', () =>
       self.plugin.jumpToSummary()
     );
-    actions.createEl('button', { text: 'Copy #tags' }).addEventListener('click', () =>
+    actions.createEl('button', { text: t('copyTags', lang) }).addEventListener('click', () =>
       self.copyTags()
     );
     this.summaryPreviewEl = contentEl.createEl('div', { cls: 'glyph-mio-summary-preview' });
     this.summaryStatusEl = contentEl.createEl('p', { cls: 'glyph-mio-summary-status' });
     contentEl.createEl('p', {
       cls: 'glyph-mio-help',
-      text:
-        '«Insert summary» — краткий пересказ в конце заметки (callout). Сначала Analyze, затем вставка. Go to summary — перейти к блоку.',
+      text: t('help', lang),
     });
+    this.refreshOllamaBadge();
     this.refresh();
   }
 
+  async refreshOllamaBadge() {
+    if (!this.ollamaStatusEl) return;
+    const lang = this.plugin.lang();
+    const state = await this.plugin.getOllamaState();
+    this.ollamaStatusEl.empty();
+    const el = this.ollamaStatusEl.createEl('span', {
+      cls: 'glyph-mio-status-pill glyph-mio-status-' + state.kind,
+      text: state.label,
+    });
+    el.setAttr('title', state.detail || state.label);
+  }
+
   async refresh() {
+    const lang = this.plugin.lang();
+    await this.refreshOllamaBadge();
     const doc = await this.plugin.readActive();
     if (!doc) {
-      this.statsEl.setText('Open a markdown note first.');
+      this.statsEl.setText(t('openNote', lang));
       this.tagsEl.empty();
       return;
     }
@@ -206,8 +305,15 @@ class GlyphMiOPanel extends Modal {
     }
     this.tagsEl.empty();
     const plugin = this.plugin;
-    meta.tags.forEach((tag) => {
-      const chip = this.tagsEl.createEl('button', { cls: 'glyph-mio-tag', text: '#' + tag });
+    const details = meta.tagDetails || meta.tags.map((tag) => ({ tag, relevance: 0.5, reasons: ['body'] }));
+    details.forEach((detail) => {
+      const tag = detail.tag || detail;
+      const pct = Math.round((detail.relevance != null ? detail.relevance : 0.5) * 100);
+      const chip = this.tagsEl.createEl('button', {
+        cls: 'glyph-mio-tag',
+        text: '#' + tag + ' · ' + pct + '%',
+      });
+      chip.setAttr('title', formatTagTooltip(detail, lang));
       chip.addEventListener('click', () => {
         const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
         if (!view) return;
@@ -216,32 +322,40 @@ class GlyphMiOPanel extends Modal {
       });
     });
 
-    const preview = extractiveSummary(doc.body, meta);
+    const preview = meta.summaryPreview || extractiveSummary(doc.body, meta);
     this._previewSummary = preview;
     if (this.summaryPreviewEl) {
       this.summaryPreviewEl.empty();
-      this.summaryPreviewEl.createEl('div', { cls: 'glyph-mio-preview-label', text: 'Черновик пересказа:' });
+      this.summaryPreviewEl.createEl('div', {
+        cls: 'glyph-mio-preview-label',
+        text: t('previewLabel', lang),
+      });
       this.summaryPreviewEl.createEl('div', { cls: 'glyph-mio-preview-text', text: preview });
     }
   }
 
   copyTags() {
+    const lang = this.plugin.lang();
     if (!this._meta || !this._meta.tags.length) {
-      new Notice('No tags');
+      new Notice(t('noTags', lang));
       return;
     }
-    const line = this._meta.tags.map((t) => '#' + t).join(' ');
+    const line = this._meta.tags.map((x) => '#' + x).join(' ');
     navigator.clipboard.writeText(line);
-    new Notice('Tags copied');
+    new Notice(t('tagsCopied', lang));
   }
 
   async insertFromPanel() {
-    const ok = await this.plugin.summarizeNote({ fromPanel: true });
+    const ok = await this.plugin.summarizeNote({ fromPanel: true, forceInsert: true });
     if (ok && this.summaryStatusEl) {
       this.summaryStatusEl.setText(
-        'Пересказ добавлен в конец «' + ok.title + '» (стр. ~' + ok.line + ', ' + ok.mode + ').'
+        'Пересказ / summary → «' +
+          ok.title +
+          '»' +
+          (ok.line != null ? ' (~' + ok.line + ', ' + ok.mode + ')' : ' (' + ok.mode + ')')
       );
     }
+    await this.refreshOllamaBadge();
   }
 }
 
@@ -249,33 +363,52 @@ class GlyphMiOPlugin extends Plugin {
   async onload() {
     await this.loadSettings();
     this._metaCache = new Map();
+    this._ollamaState = { kind: 'unknown', label: 'MI', detail: '' };
     this.addSettingTab(new GlyphMiOSettingTab(this.app, this));
     this.addRibbonIcon('sparkles', 'Glyph MI-O', () => this.openPanel());
+
+    const lang = this.lang();
     this.addCommand({
       id: 'glyph-mio-panel',
-      name: 'Glyph: open MI panel',
+      name: t('cmdPanel', lang),
       callback: () => this.openPanel(),
     });
     this.addCommand({
       id: 'glyph-mio-analyze',
-      name: 'Glyph: analyze active note',
+      name: t('cmdAnalyze', lang),
       callback: () => this.analyzeActiveNote(),
     });
     this.addCommand({
       id: 'glyph-mio-tags',
-      name: 'Glyph: suggest tags',
+      name: t('cmdTags', lang),
       callback: () => this.suggestTags(),
     });
     this.addCommand({
       id: 'glyph-mio-summarize',
-      name: 'Glyph: summarize note',
-      callback: () => this.summarizeNote(),
+      name: t('cmdSummarize', lang),
+      callback: () => this.summarizeNote({ forceInsert: true }),
     });
     this.addCommand({
       id: 'glyph-mio-jump-summary',
-      name: 'Glyph: jump to MI summary',
+      name: t('cmdJump', lang),
       callback: () => this.jumpToSummary(),
     });
+
+    this.statusBarItem = this.addStatusBarItem();
+    this.statusBarItem.addClass('glyph-mio-status-bar');
+    this.statusBarItem.setText('MI');
+    this.statusBarItem.setAttr('aria-label', 'glyph-miO Ollama status');
+    this.statusBarItem.addEventListener('click', () => this.openPanel());
+    await this.refreshOllamaStatus();
+    this._statusTimer = window.setInterval(() => this.refreshOllamaStatus(), 30000);
+  }
+
+  onunload() {
+    if (this._statusTimer) window.clearInterval(this._statusTimer);
+  }
+
+  lang() {
+    return detectLang();
   }
 
   openPanel() {
@@ -284,10 +417,51 @@ class GlyphMiOPlugin extends Plugin {
 
   async loadSettings() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    if (this.settings.ollamaTimeoutSec == null) {
+      this.settings.ollamaTimeoutSec = DEFAULT_OLLAMA_TIMEOUT_SEC;
+    }
   }
 
   async saveSettings() {
     await this.saveData(this.settings);
+  }
+
+  async getOllamaState() {
+    const lang = this.lang();
+    if (!this.settings.useOllama) {
+      return {
+        kind: 'disabled',
+        label: t('statusOllamaDisabled', lang),
+        detail: 'useOllama=false',
+      };
+    }
+    const ok = await ollamaAvailable({ ollamaUrl: this.settings.ollamaUrl });
+    if (ok) {
+      return {
+        kind: 'online',
+        label: t('statusOllamaOn', lang),
+        detail: this.settings.ollamaUrl,
+      };
+    }
+    return {
+      kind: 'offline',
+      label: t('statusOllamaOff', lang),
+      detail: 'fallback extractive',
+    };
+  }
+
+  async refreshOllamaStatus() {
+    const state = await this.getOllamaState();
+    this._ollamaState = state;
+    if (this.statusBarItem) {
+      this.statusBarItem.setText(state.label);
+      this.statusBarItem.setAttr('title', state.detail || state.label);
+      this.statusBarItem.removeClass('glyph-mio-status-online');
+      this.statusBarItem.removeClass('glyph-mio-status-offline');
+      this.statusBarItem.removeClass('glyph-mio-status-disabled');
+      this.statusBarItem.addClass('glyph-mio-status-' + state.kind);
+    }
+    return state;
   }
 
   async readActive() {
@@ -299,13 +473,13 @@ class GlyphMiOPlugin extends Plugin {
   }
 
   algorithmicMeta(file, body, cache) {
-    return computeMetadataCached(file, body, cache, { cache: this._metaCache });
+    return analyzeNote(file, body, cache, { cache: this._metaCache });
   }
 
   async analyzeActiveNote() {
     const doc = await this.readActive();
     if (!doc) {
-      new Notice('No active note');
+      new Notice(t('openNote', this.lang()));
       return;
     }
     const meta = this.algorithmicMeta(doc.file, doc.body, doc.cache);
@@ -318,15 +492,22 @@ class GlyphMiOPlugin extends Plugin {
     const doc = await this.readActive();
     if (!doc) return;
     const meta = this.algorithmicMeta(doc.file, doc.body, doc.cache);
-    const line = meta.tags.map((t) => '#' + t).join(' ');
-    new Notice(line || 'No tags suggested');
+    const details = meta.tagDetails || [];
+    const line = details.length
+      ? details
+          .slice(0, 8)
+          .map((d) => '#' + d.tag + '(' + Math.round(d.relevance * 100) + '%)')
+          .join(' ')
+      : meta.tags.map((x) => '#' + x).join(' ');
+    new Notice(line || t('noTags', this.lang()));
   }
 
   async summarizeNote(opts) {
     opts = opts || {};
+    const lang = this.lang();
     const doc = await this.readActive();
     if (!doc) {
-      new Notice('Откройте заметку / Open a note first');
+      new Notice(t('openNote', lang));
       return null;
     }
     const meta = this.algorithmicMeta(doc.file, doc.body, doc.cache);
@@ -337,6 +518,7 @@ class GlyphMiOPlugin extends Plugin {
 
     if (this.settings.useOllama) {
       const ok = await ollamaAvailable({ ollamaUrl: this.settings.ollamaUrl });
+      await this.refreshOllamaStatus();
       if (ok) {
         new Notice('Glyph: пишем пересказ (Ollama)…', 3000);
         const parsed = await ollamaJson(
@@ -355,7 +537,7 @@ class GlyphMiOPlugin extends Plugin {
           {
             ollamaUrl: this.settings.ollamaUrl,
             model: this.settings.ollamaModel,
-            timeoutMs: 60000,
+            timeoutSec: this.settings.ollamaTimeoutSec ?? DEFAULT_OLLAMA_TIMEOUT_SEC,
           }
         );
         if (parsed && parsed.summary) {
@@ -375,7 +557,17 @@ class GlyphMiOPlugin extends Plugin {
       mode = 'extractive';
     }
 
-    const placed = await this.insertSummary(summaryText, summaryTags);
+    const previewOnly = isPreviewOnlyMode(this.settings.summaryMode);
+    const shouldWrite = opts.forceInsert === true || opts.fromPanel === true || !previewOnly;
+
+    if (!shouldWrite) {
+      if (!opts.fromPanel) {
+        new Notice(t('previewOnlyNotice', lang) + '\n' + summaryText.slice(0, 180), 8000);
+      }
+      return { title: meta.title, line: null, mode: 'preview', summary: summaryText };
+    }
+
+    const placed = await this.insertSummary(summaryText, summaryTags, { confirm: true });
     if (!placed) return null;
 
     const modeLabel =
@@ -389,36 +581,58 @@ class GlyphMiOPlugin extends Plugin {
     return { title: meta.title, line: placed.line, mode: mode, summary: summaryText };
   }
 
-  async insertSummary(text, tags) {
-    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-    if (!view) return null;
-    const editor = view.editor;
-    const fullText = editor.getValue();
-    const summary = buildSummaryBlock(text, tags, this.settings.summaryMode || 'replace-latest');
-    let insertAt = editor.lastLine() + 1;
-    if (summary.mode === 'replace-latest') {
+  buildNextDocument(fullText, summary) {
+    const writeMode = summary.mode;
+    if (writeMode === 'replace-latest') {
       const markerIdx = fullText.lastIndexOf(summary.marker);
       if (markerIdx >= 0) {
         const before = fullText.slice(0, markerIdx);
         const lastBreak = fullText.indexOf('\n---', markerIdx);
         const tailStart = lastBreak >= 0 ? fullText.indexOf('\n', lastBreak + 1) : -1;
         const after = tailStart >= 0 ? fullText.slice(tailStart + 1) : '';
-        const nextValue = before.trimEnd() + summary.block + (after ? '\n' + after.trimStart() : '');
-        editor.setValue(nextValue);
-        const line = editor.lastLine();
-        editor.setCursor({ line, ch: 0 });
-        editor.scrollIntoView({ from: { line: Math.max(0, line - 4), ch: 0 }, to: { line, ch: 0 } }, true);
-        return { line };
+        return before.trimEnd() + summary.block + (after ? '\n' + after.trimStart() : '');
       }
     }
-    editor.replaceRange(summary.block, { line: editor.lastLine(), ch: editor.getLine(editor.lastLine()).length });
-    const cursorLine = insertAt + 2;
-    editor.setCursor({ line: cursorLine, ch: 0 });
-    editor.scrollIntoView(
-      { from: { line: Math.max(0, insertAt), ch: 0 }, to: { line: cursorLine + 4, ch: 0 } },
-      true
+    return fullText.replace(/\s*$/, '') + summary.block;
+  }
+
+  async insertSummary(text, tags, opts) {
+    opts = opts || {};
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!view) return null;
+    const editor = view.editor;
+    const fullText = editor.getValue();
+    const summary = buildSummaryBlock(
+      text,
+      tags,
+      resolveWriteMode(this.settings.summaryMode || 'replace-latest')
     );
-    return { line: insertAt + 1 };
+    const nextValue = this.buildNextDocument(fullText, summary);
+    const tail = (s) => {
+      const lines = String(s).split('\n');
+      return lines.slice(Math.max(0, lines.length - 24)).join('\n');
+    };
+
+    const apply = () => {
+      editor.setValue(nextValue);
+      const line = editor.lastLine();
+      editor.setCursor({ line, ch: 0 });
+      editor.scrollIntoView({ from: { line: Math.max(0, line - 4), ch: 0 }, to: { line, ch: 0 } }, true);
+      return { line };
+    };
+
+    if (opts.confirm && this.settings.previewBeforeApply !== false) {
+      return await new Promise((resolve) => {
+        new SummaryDiffModal(this.app, this, {
+          beforeText: tail(fullText),
+          afterText: tail(nextValue),
+          onApply: () => resolve(apply()),
+          onCancel: () => resolve(null),
+        }).open();
+      });
+    }
+
+    return apply();
   }
 
   jumpToSummary() {

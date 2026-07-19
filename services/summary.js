@@ -1,5 +1,20 @@
 const SUMMARY_MARKER = '<!-- glyph-miO-summary -->';
 
+/** Modes that never auto-write the document (preview / explicit insert only). */
+const PREVIEW_ONLY_MODES = new Set(['none', 'off']);
+
+function isPreviewOnlyMode(mode) {
+  return PREVIEW_ONLY_MODES.has(String(mode || '').toLowerCase());
+}
+
+/** Resolve how a forced write should land when settings say none/off. */
+function resolveWriteMode(mode) {
+  const m = String(mode || 'replace-latest').toLowerCase();
+  if (isPreviewOnlyMode(m)) return 'append';
+  if (m === 'append') return 'append';
+  return 'replace-latest';
+}
+
 function stripForSummary(body) {
   return String(body || '')
     .replace(/^---[\s\S]*?---\n?/m, '')
@@ -47,18 +62,24 @@ function extractiveSummary(body, meta) {
 }
 
 function buildSummaryBlock(text, tags, mode = 'append') {
-  const tagLine = tags.length ? '\n' + tags.map((t) => '#' + String(t).replace(/^#/, '')).join(' ') + '\n' : '\n';
+  const writeMode = resolveWriteMode(mode);
+  const tagLine = tags.length
+    ? '\n' + tags.map((t) => '#' + String(t).replace(/^#/, '')).join(' ') + '\n'
+    : '\n';
   const body =
     '\n\n---\n' +
     SUMMARY_MARKER +
     '\n> [!summary] Glyph MI-O\n> ' +
     String(text || '').replace(/\n/g, '\n> ') +
     '\n';
-  return { block: body + tagLine, marker: SUMMARY_MARKER, mode };
+  return { block: body + tagLine, marker: SUMMARY_MARKER, mode: writeMode };
 }
 
 module.exports = {
   SUMMARY_MARKER,
+  PREVIEW_ONLY_MODES,
+  isPreviewOnlyMode,
+  resolveWriteMode,
   stripForSummary,
   splitSentences,
   extractiveSummary,
