@@ -2,11 +2,11 @@
   <a href="https://obsidian.md/"><img src="https://obsidian.md/images/obsidian-logo-gradient.svg" width="72" alt="Obsidian" /></a>
 </p>
 
-<h1 align="center">glyph-miO 2.7.1</h1>
+<h1 align="center">glyph-miO 2.7.2</h1>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Obsidian-Plugin-7c3aed" alt="Плагин Obsidian" />
-  <img src="https://img.shields.io/badge/версия-2.7.1-blue" alt="версия 2.7.1" />
+  <img src="https://img.shields.io/badge/версия-2.7.2-blue" alt="версия 2.7.2" />
   <img src="https://img.shields.io/badge/офлайн-brightgreen" alt="офлайн" />
   <img src="https://img.shields.io/badge/Ollama-опционально-orange" alt="Ollama опционально" />
   <img src="https://img.shields.io/badge/лицензия-GPL--3.0-lightgrey" alt="GPL-3.0" />
@@ -39,6 +39,11 @@
 Связка с **[glyph-sO](https://github.com/FlokeStudio/glyph-sO)**: поиск по vault + понимание текущей заметки. В перспективе — общий стиль **glyph-ui** с sO.
 
 ---
+
+## Что нового в 2.7.2
+
+- **`replace-latest` не копит `---`** — при замене саммари снимается предыдущий разделитель перед маркером
+- Вес заголовка заметки в скоринге тегов подтверждён в коде (выше, чем у headings)
 
 ## Что нового в 2.7.1
 

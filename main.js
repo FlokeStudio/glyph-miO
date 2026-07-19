@@ -586,7 +586,11 @@ class GlyphMiOPlugin extends Plugin {
     if (writeMode === 'replace-latest') {
       const markerIdx = fullText.lastIndexOf(summary.marker);
       if (markerIdx >= 0) {
-        const before = fullText.slice(0, markerIdx);
+        // Drop the leading `\n\n---` that buildSummaryBlock prepends, so
+        // replace-latest does not accumulate extra horizontal rules.
+        const hrIdx = fullText.lastIndexOf('\n---\n', markerIdx);
+        const cutAt = hrIdx >= 0 && markerIdx - hrIdx < 12 ? hrIdx : markerIdx;
+        const before = fullText.slice(0, cutAt);
         const lastBreak = fullText.indexOf('\n---', markerIdx);
         const tailStart = lastBreak >= 0 ? fullText.indexOf('\n', lastBreak + 1) : -1;
         const after = tailStart >= 0 ? fullText.slice(tailStart + 1) : '';

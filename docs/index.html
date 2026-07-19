@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>glyph-miO 2.7.1 — Metadata Intelligence for Obsidian</title>
+  <title>glyph-miO 2.7.2 — Metadata Intelligence for Obsidian</title>
   <meta name="description" content="Summarize notes, suggest tags, and analyze metadata in Obsidian — offline-first with optional Ollama enhancement.">
   <style>
     :root {
@@ -105,22 +105,27 @@
     <h1>Understand your notes.<br>Tags and summaries, instantly.</h1>
     <p class="lead">glyph-miO analyzes the active note and inserts a compact summary block with suggested tags — algorithmic by default, optionally enhanced by a local Ollama model.</p>
     <div class="cta-row">
-      <a class="btn btn-primary" href="https://github.com/FlokeStudio/glyph-miO/releases">Download 2.7.1</a>
+      <a class="btn btn-primary" href="https://github.com/FlokeStudio/glyph-miO">Get 2.7.2 (main)</a>
       <a class="btn btn-secondary" href="https://github.com/FlokeStudio/glyph-miO/blob/main/README.md">Read the docs</a>
     </div>
   </header>
 
   <section class="section">
-    <h2>What’s new in 2.7.1</h2>
-    <p class="sub">Safer cache keys, explainable tags, Ollama status, none/off summary mode, and optional diff preview.</p>
+    <h2>What’s new in 2.7.2</h2>
+    <p class="sub">replace-latest no longer stacks extra <code>---</code> rules; title still has the highest tag weight; plus 2.7.1 polish.</p>
     <div class="grid">
+      <article class="card">
+        <h3>Clean summary replace</h3>
+        <p><code>replace-latest</code> strips the previous horizontal rule before the marker, so repeated Insert summary does not grow separator junk.</p>
+        <div class="badge-row"><span class="badge">replace-latest</span></div>
+      </article>
       <article class="card">
         <h3>Service modules</h3>
         <p>Local MI logic in <code>services/*</code> — roadmap to consume glyph-mi <code>notes</code> via an adapter stub without dropping the offline path.</p>
       </article>
       <article class="card">
         <h3>Weighted tag scoring</h3>
-        <p>Tags ranked by title, headings, and body — with relevance % and tooltip reasons. Cache key is always path + mtime + size + content hash.</p>
+        <p>Tags ranked by title (highest), headings, and body — with relevance % and tooltip reasons. Cache key is always path + mtime + size + content hash.</p>
         <div class="badge-row"><span class="badge">path in cache key</span></div>
       </article>
       <article class="card">

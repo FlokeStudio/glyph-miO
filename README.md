@@ -2,7 +2,7 @@
   <a href="https://obsidian.md/"><img src="https://obsidian.md/images/obsidian-logo-gradient.svg" width="72" alt="Obsidian" /></a>
 </p>
 
-<h1 align="center">glyph-miO 2.7.1</h1>
+<h1 align="center">glyph-miO 2.7.2</h1>
 
 <p align="center">
   <strong>Metadata Intelligence for Obsidian</strong><br>
@@ -29,6 +29,11 @@
 - **Offline by default** — no cloud, no API keys; optional local Ollama enhancement
 
 It pairs naturally with [**glyph-sO**](https://github.com/FlokeStudio/glyph-sO): search finds notes across the vault; glyph-miO understands the note you’re working on right now. Long-term UI chrome aims to share a **glyph-ui** styling kit with sO.
+
+### What’s new in 2.7.2
+
+- **`replace-latest` no longer stacks `---`** — replacing a summary strips the previous horizontal rule before the marker, so repeated Insert summary does not accumulate separators at the end of the note
+- Tag scoring already weights **note title highest** (`+16` vs headings `+10`); docs match `services/metadata.js`
 
 ### What’s new in 2.7.1
 
@@ -132,7 +137,7 @@ MI logic for this plugin currently lives in local **`services/*`**. Roadmap: con
 
 ## GitHub / Dev section
 
-### Architecture (2.7.1)
+### Architecture (2.7.2)
 
 ```
 main.js                              # Plugin UI, Ollama client, commands, status bar

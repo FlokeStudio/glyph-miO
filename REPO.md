@@ -1,6 +1,6 @@
 # glyph-miO Repository Note
 
-`glyph-miO` is the Obsidian metadata intelligence plugin in the Glyph 2.7 family (current **2.7.1**).
+`glyph-miO` is the Obsidian metadata intelligence plugin in the Glyph 2.7 family (current **2.7.2**).
 
 - Main docs: `README.md` / `README.ru.md`
 - Site: https://flokestudio.github.io/glyph-miO/
