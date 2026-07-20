@@ -50,7 +50,7 @@
 
 .glyph-mio-status-online,
 .glyph-mio-status-bar.glyph-mio-status-online {
-  color: var(--text-success, var(--color-green, #3ecf8e));
+  color: var(--text-success, var(--color-green));
 }
 
 .glyph-mio-status-offline,

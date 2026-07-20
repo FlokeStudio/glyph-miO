@@ -2,7 +2,7 @@
   <a href="https://obsidian.md/"><img src="https://obsidian.md/images/obsidian-logo-gradient.svg" width="72" alt="Obsidian" /></a>
 </p>
 
-<h1 align="center">glyph-miO 2.7.2</h1>
+<h1 align="center">glyph-miO 2.7.3</h1>
 
 <p align="center">
   <strong>Metadata Intelligence for Obsidian</strong><br>
@@ -10,6 +10,7 @@
 </p>
 
 <p align="center">
+  <a href="ROADMAP.md">Roadmap</a> ·
   <a href="https://flokestudio.github.io/glyph-miO/">Site</a> ·
   <a href="README.ru.md">README.ru</a> ·
   <a href="https://github.com/FlokeStudio/glyph-sO">glyph-sO</a> ·
@@ -29,6 +30,11 @@
 - **Offline by default** — no cloud, no API keys; optional local Ollama enhancement
 
 It pairs naturally with [**glyph-sO**](https://github.com/FlokeStudio/glyph-sO): search finds notes across the vault; glyph-miO understands the note you’re working on right now. Long-term UI chrome aims to share a **glyph-ui** styling kit with sO.
+
+### What’s new in 2.7.3
+
+- **Theme-safe UI** — CSS uses Obsidian variables only (no hardcoded hex fallbacks)
+- **[ROADMAP.md](ROADMAP.md)** — sidebar panel, batch vault analysis, frontmatter tags
 
 ### What’s new in 2.7.2
 
