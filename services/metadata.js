@@ -4,20 +4,6 @@ const STOP_WORDS = new Set([
   'также', 'через', 'после', 'если', 'когда', 'только', 'уже', 'все', 'всё', 'его', 'ее', 'её',
 ]);
 
-/**
- * Cache key strategy (path is ALWAYS included to avoid cross-note collisions):
- *
- *   `${path}|${mtime}|${size}|${contentHash}`
- *
- * - `path` — vault-relative path (required; empty path uses sentinel `__unnamed__`)
- * - `mtime` — file.stat.mtime when available
- * - `size` — file.stat.size, else body length
- * - `contentHash` — short FNV-1a of body (guards stale mtime / identical size collisions)
- *
- * Prefer this explicit composite over bare mtime alone. Content hash alone is not enough
- * without path (two notes could hash identically); path alone is not enough without
- * mtime/size/hash (edits would keep a stale cache entry).
- */
 function contentHash(body) {
   const s = String(body || '');
   let h = 2166136261;

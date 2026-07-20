@@ -2,7 +2,7 @@
   <a href="https://obsidian.md/"><img src="https://obsidian.md/images/obsidian-logo-gradient.svg" width="72" alt="Obsidian" /></a>
 </p>
 
-<h1 align="center">glyph-miO 2.7.3</h1>
+<h1 align="center">glyph-miO 2.8.0</h1>
 
 <p align="center">
   <strong>Metadata Intelligence for Obsidian</strong><br>
@@ -31,10 +31,19 @@
 
 It pairs naturally with [**glyph-sO**](https://github.com/FlokeStudio/glyph-sO): search finds notes across the vault; glyph-miO understands the note you’re working on right now. Long-term UI chrome aims to share a **glyph-ui** styling kit with sO.
 
+### What’s new in 2.8.0
+
+- **Sidebar panel** — MI panel docks in the right rail (`ItemView`); set `panelMode: modal` for the legacy centered modal
+- **Vault batch analysis** — command **Glyph: analyze vault** reports untagged notes and tag suggestions
+- **Frontmatter tags** — setting **Tag write mode**: `inline` (default) or `frontmatter` (YAML `tags` merge)
+- **Summary history** — last 10 summary applies stored; **Glyph: rollback last summary** restores the previous file body
+- **Vault tag frequency** — tag chip tooltips show how many notes in the vault use each tag
+- **Services** — `panel-view`, `frontmatter`, `vault-cache`, `batch-analyze`, `summary-history` + vitest coverage
+
 ### What’s new in 2.7.3
 
 - **Theme-safe UI** — CSS uses Obsidian variables only (no hardcoded hex fallbacks)
-- **[ROADMAP.md](ROADMAP.md)** — sidebar panel, batch vault analysis, frontmatter tags
+- **[ROADMAP.md](ROADMAP.md)** — shipped sidebar panel, batch vault analysis, frontmatter tags in 2.8.0
 
 ### What’s new in 2.7.2
 
@@ -58,10 +67,15 @@ It pairs naturally with [**glyph-sO**](https://github.com/FlokeStudio/glyph-sO):
 
 | Service | Responsibility |
 |---------|----------------|
+| `services/panel-view.js` | Sidebar `ItemView` + shared panel UI mount |
+| `services/frontmatter.js` | Inline vs YAML tag writes (`processFrontMatter`) |
+| `services/vault-cache.js` | Background vault index (tags, title, word count) |
+| `services/batch-analyze.js` | Vault-wide untagged scan + suggestions |
+| `services/summary-history.js` | Last 10 summary applies + rollback |
 | `services/metadata.js` | Weighted tag scoring, stop-words, cache key |
 | `services/summary.js` | Sentence extraction, block formatting, lifecycle modes |
 | `services/i18n.js` | EN/RU strings for commands and settings |
-| `services/glyph-mi-notes-adapter.js` | Stub toward shared glyph-mi `notes` contract |
+| `services/glyph-mi-notes-adapter.js` | Local analyzeNote (glyph-mi notes stub) |
 
 **Weighted metadata scoring** — tags ranked by:
 
@@ -92,6 +106,11 @@ It pairs naturally with [**glyph-sO**](https://github.com/FlokeStudio/glyph-sO):
     ├── metadata.js
     ├── summary.js
     ├── i18n.js
+    ├── panel-view.js
+    ├── frontmatter.js
+    ├── vault-cache.js
+    ├── batch-analyze.js
+    ├── summary-history.js
     └── glyph-mi-notes-adapter.js
 ```
 
@@ -101,7 +120,9 @@ It pairs naturally with [**glyph-sO**](https://github.com/FlokeStudio/glyph-sO):
 
 | Command (EN) | Command (RU) | What it does |
 |--------------|--------------|--------------|
-| **Glyph: open MI panel** | **Glyph: открыть панель MI** | Interactive panel with tags and summary preview |
+| **Glyph: open MI panel** | **Glyph: открыть панель MI** | Open sidebar MI panel (or modal if `panelMode: modal`) |
+| **Glyph: analyze vault** | **Glyph: анализ vault** | Scan vault for untagged notes and suggestions |
+| **Glyph: rollback last summary** | **Glyph: откатить последний пересказ** | Restore note body from summary history |
 | **Glyph: summarize note** | **Glyph: пересказ заметки** | Insert or update the summary block (respects mode + diff preview) |
 | **Glyph: jump to MI summary** | **Glyph: перейти к саммари MI** | Cursor jumps to the summary marker |
 | **Glyph: analyze active note** | **Glyph: анализ активной заметки** | Run analysis without opening the panel |
@@ -117,6 +138,8 @@ It pairs naturally with [**glyph-sO**](https://github.com/FlokeStudio/glyph-sO):
 | **Ollama timeout (seconds)** | Abort generation after N seconds (default **12**), then offline fallback |
 | **Summary block mode** | `append`, `replace-latest`, `none`, or `off` |
 | **Diff preview before Apply** | Show before/after modal (Apply / Cancel) before writing |
+| **Tag write mode** | `inline` (#tags in body / summary block) or `frontmatter` (YAML `tags`) |
+| **Panel mode** | `sidebar` (default) or `modal` (legacy centered panel) |
 
 ### How analysis works
 
@@ -143,15 +166,20 @@ MI logic for this plugin currently lives in local **`services/*`**. Roadmap: con
 
 ## GitHub / Dev section
 
-### Architecture (2.7.2)
+### Architecture (2.8.0)
 
 ```
 main.js                              # Plugin UI, Ollama client, commands, status bar
+services/panel-view.js               # ItemView sidebar + mountGlyphMiOPanel
+services/frontmatter.js              # applyTagsToFrontmatter
+services/vault-cache.js              # VaultCache index + debounced rebuild
+services/batch-analyze.js            # analyzeVault
+services/summary-history.js          # pushHistory / rollbackLast
 services/metadata.js                 # computeMetadataCached, cache key, tagDetails
 services/summary.js                  # extractiveSummary, buildSummaryBlock, none/off
 services/i18n.js                     # EN/RU labels
-services/glyph-mi-notes-adapter.js   # stub → future glyph-mi notes module
-styles.css                           # panel, status, diff modal
+services/glyph-mi-notes-adapter.js   # local analyzeNote
+styles.css                           # panel, sidebar view, status, diff modal
 ```
 
 ### Metadata cache key

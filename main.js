@@ -14,7 +14,12 @@ const {
   isPreviewOnlyMode,
   resolveWriteMode,
 } = require('./services/summary');
-const { t, detectLang, reasonLabel } = require('./services/i18n');
+const { t, detectLang } = require('./services/i18n');
+const { VIEW_TYPE, GlyphMiOPanelView, mountGlyphMiOPanel } = require('./services/panel-view');
+const { applyTagsToFrontmatter } = require('./services/frontmatter');
+const { VaultCache } = require('./services/vault-cache');
+const { analyzeVault } = require('./services/batch-analyze');
+const { pushHistory, rollbackLast } = require('./services/summary-history');
 
 const DEFAULT_OLLAMA_URL = 'http://127.0.0.1:11434';
 const DEFAULT_OLLAMA_MODEL = 'llama3.2';
@@ -27,7 +32,7 @@ function parseJsonLoose(text) {
   if (start < 0 || end < 0) return null;
   try {
     return JSON.parse(raw.slice(start, end + 1));
-  } catch (e) {
+  } catch {
     return null;
   }
 }
@@ -38,7 +43,7 @@ async function ollamaAvailable(options) {
   try {
     const res = await fetch(baseUrl + '/api/tags', { method: 'GET' });
     return res.ok;
-  } catch (e) {
+  } catch {
     return false;
   }
 }
@@ -71,12 +76,11 @@ async function ollamaGenerate(req, options) {
       }),
     });
     if (!res.ok) {
-      console.warn('glyph-miO: Ollama', res.status, res.statusText);
       return null;
     }
     const data = await res.json();
     return data.response != null ? data.response : null;
-  } catch (e) {
+  } catch {
     return null;
   } finally {
     clearTimeout(timer);
@@ -95,16 +99,10 @@ const DEFAULT_SETTINGS = {
   ollamaTimeoutSec: DEFAULT_OLLAMA_TIMEOUT_SEC,
   summaryMode: 'replace-latest',
   previewBeforeApply: true,
+  tagWriteMode: 'inline',
+  panelMode: 'sidebar',
+  summaryHistory: [],
 };
-
-function formatTagTooltip(detail, lang) {
-  if (!detail) return '';
-  const pct = Math.round((detail.relevance != null ? detail.relevance : 0) * 100);
-  const reasons = (detail.reasons || [])
-    .map((r) => reasonLabel(r, lang))
-    .join(', ');
-  return t('relevanceTitle', lang) + ': ' + pct + '%' + (reasons ? ' — ' + reasons : '');
-}
 
 class SummaryDiffModal extends Modal {
   constructor(app, plugin, opts) {
@@ -151,7 +149,7 @@ class GlyphMiOSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     const lang = this.plugin.lang();
     containerEl.empty();
-    containerEl.createEl('h2', { text: t('settingsTitle', lang) + ' 2.7' });
+    containerEl.createEl('h2', { text: t('settingsTitle', lang) + ' 2.8' });
 
     new Setting(containerEl)
       .setName(t('enableOllama', lang))
@@ -229,6 +227,34 @@ class GlyphMiOSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
         })
       );
+
+    new Setting(containerEl)
+      .setName(t('tagWriteMode', lang))
+      .setDesc(t('tagWriteModeDesc', lang))
+      .addDropdown((d) =>
+        d
+          .addOption('inline', 'inline')
+          .addOption('frontmatter', 'frontmatter')
+          .setValue(this.plugin.settings.tagWriteMode || 'inline')
+          .onChange(async (v) => {
+            this.plugin.settings.tagWriteMode = v;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName(t('panelMode', lang))
+      .setDesc(t('panelModeDesc', lang))
+      .addDropdown((d) =>
+        d
+          .addOption('sidebar', 'sidebar')
+          .addOption('modal', 'modal')
+          .setValue(this.plugin.settings.panelMode || 'sidebar')
+          .onChange(async (v) => {
+            this.plugin.settings.panelMode = v;
+            await this.plugin.saveSettings();
+          })
+      );
   }
 }
 
@@ -236,126 +262,19 @@ class GlyphMiOPanel extends Modal {
   constructor(app, plugin) {
     super(app);
     this.plugin = plugin;
+    this.panel = null;
   }
 
   onOpen() {
     const { contentEl } = this;
-    const lang = this.plugin.lang();
     contentEl.addClass('glyph-mio-panel');
-    contentEl.createEl('h2', { text: t('panelTitle', lang) + ' 2.7' });
-    contentEl.createEl('p', {
-      cls: 'glyph-mio-lead',
-      text: t('panelLead', lang),
-    });
-    this.ollamaStatusEl = contentEl.createEl('div', { cls: 'glyph-mio-ollama-status' });
-    this.statsEl = contentEl.createEl('div', { cls: 'glyph-mio-stats' });
-    this.tagsEl = contentEl.createEl('div', { cls: 'glyph-mio-tags' });
-    const actions = contentEl.createEl('div', { cls: 'glyph-mio-actions' });
-    const self = this;
-    actions.createEl('button', { text: t('analyze', lang), cls: 'mod-cta' }).addEventListener('click', () =>
-      self.refresh()
-    );
-    actions.createEl('button', { text: t('insertSummary', lang) }).addEventListener('click', () =>
-      self.insertFromPanel()
-    );
-    actions.createEl('button', { text: t('goToSummary', lang) }).addEventListener('click', () =>
-      self.plugin.jumpToSummary()
-    );
-    actions.createEl('button', { text: t('copyTags', lang) }).addEventListener('click', () =>
-      self.copyTags()
-    );
-    this.summaryPreviewEl = contentEl.createEl('div', { cls: 'glyph-mio-summary-preview' });
-    this.summaryStatusEl = contentEl.createEl('p', { cls: 'glyph-mio-summary-status' });
-    contentEl.createEl('p', {
-      cls: 'glyph-mio-help',
-      text: t('help', lang),
-    });
-    this.refreshOllamaBadge();
-    this.refresh();
+    this.panel = mountGlyphMiOPanel(contentEl, this.plugin);
+    this.panel.refresh();
   }
 
-  async refreshOllamaBadge() {
-    if (!this.ollamaStatusEl) return;
-    const lang = this.plugin.lang();
-    const state = await this.plugin.getOllamaState();
-    this.ollamaStatusEl.empty();
-    const el = this.ollamaStatusEl.createEl('span', {
-      cls: 'glyph-mio-status-pill glyph-mio-status-' + state.kind,
-      text: state.label,
-    });
-    el.setAttr('title', state.detail || state.label);
-  }
-
-  async refresh() {
-    const lang = this.plugin.lang();
-    await this.refreshOllamaBadge();
-    const doc = await this.plugin.readActive();
-    if (!doc) {
-      this.statsEl.setText(t('openNote', lang));
-      this.tagsEl.empty();
-      return;
-    }
-    const meta = this.plugin.algorithmicMeta(doc.file, doc.body, doc.cache);
-    this._meta = meta;
-    this.statsEl.empty();
-    this.statsEl.createEl('div', { text: 'Title: ' + meta.title });
-    this.statsEl.createEl('div', { text: 'Words: ' + meta.wordCount + ' · Links: ' + meta.links });
-    if (meta.headings.length) {
-      this.statsEl.createEl('div', { text: 'Headings: ' + meta.headings.slice(0, 5).join(' · ') });
-    }
-    this.tagsEl.empty();
-    const plugin = this.plugin;
-    const details = meta.tagDetails || meta.tags.map((tag) => ({ tag, relevance: 0.5, reasons: ['body'] }));
-    details.forEach((detail) => {
-      const tag = detail.tag || detail;
-      const pct = Math.round((detail.relevance != null ? detail.relevance : 0.5) * 100);
-      const chip = this.tagsEl.createEl('button', {
-        cls: 'glyph-mio-tag',
-        text: '#' + tag + ' · ' + pct + '%',
-      });
-      chip.setAttr('title', formatTagTooltip(detail, lang));
-      chip.addEventListener('click', () => {
-        const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
-        if (!view) return;
-        const pos = view.editor.getCursor();
-        view.editor.replaceRange('#' + tag + ' ', pos);
-      });
-    });
-
-    const preview = meta.summaryPreview || extractiveSummary(doc.body, meta);
-    this._previewSummary = preview;
-    if (this.summaryPreviewEl) {
-      this.summaryPreviewEl.empty();
-      this.summaryPreviewEl.createEl('div', {
-        cls: 'glyph-mio-preview-label',
-        text: t('previewLabel', lang),
-      });
-      this.summaryPreviewEl.createEl('div', { cls: 'glyph-mio-preview-text', text: preview });
-    }
-  }
-
-  copyTags() {
-    const lang = this.plugin.lang();
-    if (!this._meta || !this._meta.tags.length) {
-      new Notice(t('noTags', lang));
-      return;
-    }
-    const line = this._meta.tags.map((x) => '#' + x).join(' ');
-    navigator.clipboard.writeText(line);
-    new Notice(t('tagsCopied', lang));
-  }
-
-  async insertFromPanel() {
-    const ok = await this.plugin.summarizeNote({ fromPanel: true, forceInsert: true });
-    if (ok && this.summaryStatusEl) {
-      this.summaryStatusEl.setText(
-        'Пересказ / summary → «' +
-          ok.title +
-          '»' +
-          (ok.line != null ? ' (~' + ok.line + ', ' + ok.mode + ')' : ' (' + ok.mode + ')')
-      );
-    }
-    await this.refreshOllamaBadge();
+  onClose() {
+    this.contentEl.empty();
+    this.panel = null;
   }
 }
 
@@ -364,6 +283,13 @@ class GlyphMiOPlugin extends Plugin {
     await this.loadSettings();
     this._metaCache = new Map();
     this._ollamaState = { kind: 'unknown', label: 'MI', detail: '' };
+    this.vaultCache = new VaultCache(this);
+    await this.vaultCache.load();
+    this.vaultCache.bindVaultEvents();
+    this.vaultCache.scheduleRebuild();
+
+    this.registerView(VIEW_TYPE, (leaf) => new GlyphMiOPanelView(leaf, this));
+
     this.addSettingTab(new GlyphMiOSettingTab(this.app, this));
     this.addRibbonIcon('sparkles', 'Glyph MI-O', () => this.openPanel());
 
@@ -377,6 +303,11 @@ class GlyphMiOPlugin extends Plugin {
       id: 'glyph-mio-analyze',
       name: t('cmdAnalyze', lang),
       callback: () => this.analyzeActiveNote(),
+    });
+    this.addCommand({
+      id: 'glyph-mio-analyze-vault',
+      name: t('cmdAnalyzeVault', lang),
+      callback: () => this.analyzeVaultCommand(),
     });
     this.addCommand({
       id: 'glyph-mio-tags',
@@ -393,6 +324,11 @@ class GlyphMiOPlugin extends Plugin {
       name: t('cmdJump', lang),
       callback: () => this.jumpToSummary(),
     });
+    this.addCommand({
+      id: 'glyph-mio-rollback-summary',
+      name: t('cmdRollback', lang),
+      callback: () => this.rollbackSummaryCommand(),
+    });
 
     this.statusBarItem = this.addStatusBarItem();
     this.statusBarItem.addClass('glyph-mio-status-bar');
@@ -405,20 +341,38 @@ class GlyphMiOPlugin extends Plugin {
 
   onunload() {
     if (this._statusTimer) window.clearInterval(this._statusTimer);
+    this.app.workspace.detachLeavesOfType(VIEW_TYPE);
   }
 
   lang() {
     return detectLang();
   }
 
-  openPanel() {
-    new GlyphMiOPanel(this.app, this).open();
+  async openPanel() {
+    if (this.settings.panelMode === 'modal') {
+      new GlyphMiOPanel(this.app, this).open();
+      return;
+    }
+
+    const leaf = this.app.workspace.getRightLeaf(false);
+    if (!leaf) return;
+    await leaf.setViewState({ type: VIEW_TYPE, active: true });
+    this.app.workspace.revealLeaf(leaf);
   }
 
   async loadSettings() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
     if (this.settings.ollamaTimeoutSec == null) {
       this.settings.ollamaTimeoutSec = DEFAULT_OLLAMA_TIMEOUT_SEC;
+    }
+    if (!this.settings.tagWriteMode) {
+      this.settings.tagWriteMode = 'inline';
+    }
+    if (!this.settings.panelMode) {
+      this.settings.panelMode = 'sidebar';
+    }
+    if (!Array.isArray(this.settings.summaryHistory)) {
+      this.settings.summaryHistory = [];
     }
   }
 
@@ -486,6 +440,37 @@ class GlyphMiOPlugin extends Plugin {
     new Notice(
       'Glyph: ' + meta.tags.length + ' tags · ' + meta.links + ' links · ' + meta.wordCount + ' words'
     );
+  }
+
+  async analyzeVaultCommand() {
+    const lang = this.lang();
+    const result = await analyzeVault(this.app, this);
+    const msg = t('vaultAnalyzeDone', lang)
+      .replace('{total}', String(result.total))
+      .replace('{untagged}', String(result.untagged))
+      .replace('{suggestions}', String(result.suggestions.length));
+    new Notice(msg, 8000);
+    if (result.suggestions.length) {
+      const sample = result.suggestions
+        .slice(0, 3)
+        .map((s) => s.title + ': ' + s.tags.slice(0, 3).map((tag) => '#' + tag).join(' '))
+        .join('\n');
+      new Notice(sample, 10000);
+    }
+  }
+
+  async rollbackSummaryCommand() {
+    const lang = this.lang();
+    const result = await rollbackLast(this.app, this);
+    if (result.ok) {
+      new Notice(t('rollbackOk', lang) + ' ' + result.path);
+      return;
+    }
+    if (result.reason === 'missing-file') {
+      new Notice(t('rollbackMissing', lang));
+      return;
+    }
+    new Notice(t('rollbackEmpty', lang));
   }
 
   async suggestTags() {
@@ -567,7 +552,7 @@ class GlyphMiOPlugin extends Plugin {
       return { title: meta.title, line: null, mode: 'preview', summary: summaryText };
     }
 
-    const placed = await this.insertSummary(summaryText, summaryTags, { confirm: true });
+    const placed = await this.insertSummary(summaryText, summaryTags, { confirm: true, file: doc.file });
     if (!placed) return null;
 
     const modeLabel =
@@ -586,8 +571,6 @@ class GlyphMiOPlugin extends Plugin {
     if (writeMode === 'replace-latest') {
       const markerIdx = fullText.lastIndexOf(summary.marker);
       if (markerIdx >= 0) {
-        // Drop the leading `\n\n---` that buildSummaryBlock prepends, so
-        // replace-latest does not accumulate extra horizontal rules.
         const hrIdx = fullText.lastIndexOf('\n---\n', markerIdx);
         const cutAt = hrIdx >= 0 && markerIdx - hrIdx < 12 ? hrIdx : markerIdx;
         const before = fullText.slice(0, cutAt);
@@ -606,10 +589,13 @@ class GlyphMiOPlugin extends Plugin {
     if (!view) return null;
     const editor = view.editor;
     const fullText = editor.getValue();
+    const file = opts.file || view.file;
+    const tagWriteMode = this.settings.tagWriteMode || 'inline';
     const summary = buildSummaryBlock(
       text,
       tags,
-      resolveWriteMode(this.settings.summaryMode || 'replace-latest')
+      resolveWriteMode(this.settings.summaryMode || 'replace-latest'),
+      tagWriteMode
     );
     const nextValue = this.buildNextDocument(fullText, summary);
     const tail = (s) => {
@@ -617,11 +603,21 @@ class GlyphMiOPlugin extends Plugin {
       return lines.slice(Math.max(0, lines.length - 24)).join('\n');
     };
 
-    const apply = () => {
+    const apply = async () => {
       editor.setValue(nextValue);
       const line = editor.lastLine();
       editor.setCursor({ line, ch: 0 });
       editor.scrollIntoView({ from: { line: Math.max(0, line - 4), ch: 0 }, to: { line, ch: 0 } }, true);
+      if (file && tags && tags.length && tagWriteMode === 'frontmatter') {
+        await applyTagsToFrontmatter(this.app, file, tags, 'frontmatter');
+      }
+      if (file) {
+        await pushHistory(this, {
+          path: file.path,
+          snippet: text.slice(0, 240),
+          fullText: fullText,
+        });
+      }
       return { line };
     };
 

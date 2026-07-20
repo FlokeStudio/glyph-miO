@@ -29,6 +29,20 @@
   min-width: min(460px, 92vw);
 }
 
+.glyph-mi-o-view {
+  padding: 0.75em 1em;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.glyph-mi-o-view .glyph-mio-stats {
+  margin-bottom: 0.75em;
+}
+
+.glyph-mi-o-view .glyph-mio-actions {
+  margin: 0.55em 0;
+}
+
 .glyph-mio-lead {
   opacity: 0.85;
   font-size: 0.9em;

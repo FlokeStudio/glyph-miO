@@ -1,8 +1,3 @@
-/**
- * Lightweight EN/RU labels for commands and settings.
- * Uses Obsidian getLanguage() when available, else navigator / 'en'.
- */
-
 const STRINGS = {
   en: {
     panelTitle: 'glyph-miO',
@@ -26,11 +21,17 @@ const STRINGS = {
       'append: add a new block. replace-latest: update the latest block. none/off: preview only — do not auto-write; insert via panel button or when you confirm.',
     previewBeforeApply: 'Diff preview before Apply',
     previewBeforeApplyDesc: 'Show a before/after modal before inserting or replacing a summary block.',
+    tagWriteMode: 'Tag write mode',
+    tagWriteModeDesc: 'inline: #tags in the note body. frontmatter: merge into YAML tags array.',
+    panelMode: 'Panel mode',
+    panelModeDesc: 'sidebar: dock in the right rail. modal: legacy centered modal.',
     cmdPanel: 'Glyph: open MI panel',
     cmdAnalyze: 'Glyph: analyze active note',
+    cmdAnalyzeVault: 'Glyph: analyze vault',
     cmdTags: 'Glyph: suggest tags',
     cmdSummarize: 'Glyph: summarize note',
     cmdJump: 'Glyph: jump to MI summary',
+    cmdRollback: 'Glyph: rollback last summary',
     statusOllamaOn: 'MI · Ollama',
     statusOllamaOff: 'MI · offline',
     statusOllamaDisabled: 'MI · Ollama off',
@@ -40,6 +41,7 @@ const STRINGS = {
     diffBefore: 'Current note (tail)',
     diffAfter: 'After insert / replace',
     relevanceTitle: 'Relevance',
+    vaultFreq: 'Vault uses',
     reasonTitle: 'title',
     reasonHeading: 'heading',
     reasonBody: 'body',
@@ -48,6 +50,11 @@ const STRINGS = {
     openNote: 'Open a markdown note first.',
     noTags: 'No tags',
     tagsCopied: 'Tags copied',
+    summaryApplied: 'Summary applied →',
+    vaultAnalyzeDone: 'Vault: {total} notes · {untagged} untagged · {suggestions} suggestions',
+    rollbackOk: 'Rolled back summary for',
+    rollbackEmpty: 'No summary history to rollback',
+    rollbackMissing: 'Could not rollback — file missing',
   },
   ru: {
     panelTitle: 'glyph-miO',
@@ -71,11 +78,17 @@ const STRINGS = {
       'append: добавить новый блок. replace-latest: обновить последний. none/off: только черновик — не писать в файл автоматически; вставка кнопкой или с подтверждением.',
     previewBeforeApply: 'Превью diff перед Apply',
     previewBeforeApplyDesc: 'Показать модалку до/после перед вставкой или заменой блока саммари.',
+    tagWriteMode: 'Режим записи тегов',
+    tagWriteModeDesc: 'inline: #теги в тексте. frontmatter: массив tags в YAML.',
+    panelMode: 'Режим панели',
+    panelModeDesc: 'sidebar: боковая панель. modal: прежнее модальное окно.',
     cmdPanel: 'Glyph: открыть панель MI',
     cmdAnalyze: 'Glyph: анализ активной заметки',
+    cmdAnalyzeVault: 'Glyph: анализ vault',
     cmdTags: 'Glyph: предложить теги',
     cmdSummarize: 'Glyph: пересказ заметки',
     cmdJump: 'Glyph: перейти к саммари MI',
+    cmdRollback: 'Glyph: откатить последний пересказ',
     statusOllamaOn: 'MI · Ollama',
     statusOllamaOff: 'MI · офлайн',
     statusOllamaDisabled: 'MI · Ollama выкл.',
@@ -85,6 +98,7 @@ const STRINGS = {
     diffBefore: 'Сейчас (хвост заметки)',
     diffAfter: 'После вставки / замены',
     relevanceTitle: 'Релевантность',
+    vaultFreq: 'В vault',
     reasonTitle: 'заголовок',
     reasonHeading: 'раздел',
     reasonBody: 'текст',
@@ -93,6 +107,11 @@ const STRINGS = {
     openNote: 'Сначала откройте markdown-заметку.',
     noTags: 'Нет тегов',
     tagsCopied: 'Теги скопированы',
+    summaryApplied: 'Пересказ →',
+    vaultAnalyzeDone: 'Vault: {total} заметок · {untagged} без тегов · {suggestions} предложений',
+    rollbackOk: 'Откат пересказа для',
+    rollbackEmpty: 'Нет истории пересказов',
+    rollbackMissing: 'Откат невозможен — файл не найден',
   },
 };
 
@@ -104,13 +123,13 @@ function detectLang() {
       return lang.startsWith('ru') ? 'ru' : 'en';
     }
   } catch (e) {
-    /* ignore */
+    void e;
   }
   try {
     const nav = typeof navigator !== 'undefined' ? navigator.language : '';
     if (String(nav).toLowerCase().startsWith('ru')) return 'ru';
   } catch (e) {
-    /* ignore */
+    void e;
   }
   return 'en';
 }

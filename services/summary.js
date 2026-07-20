@@ -1,13 +1,11 @@
 const SUMMARY_MARKER = '<!-- glyph-miO-summary -->';
 
-/** Modes that never auto-write the document (preview / explicit insert only). */
 const PREVIEW_ONLY_MODES = new Set(['none', 'off']);
 
 function isPreviewOnlyMode(mode) {
   return PREVIEW_ONLY_MODES.has(String(mode || '').toLowerCase());
 }
 
-/** Resolve how a forced write should land when settings say none/off. */
 function resolveWriteMode(mode) {
   const m = String(mode || 'replace-latest').toLowerCase();
   if (isPreviewOnlyMode(m)) return 'append';
@@ -61,11 +59,12 @@ function extractiveSummary(body, meta) {
   return picked.map((x) => x.sentence).join(' ');
 }
 
-function buildSummaryBlock(text, tags, mode = 'append') {
+function buildSummaryBlock(text, tags, mode = 'append', tagWriteMode = 'inline') {
   const writeMode = resolveWriteMode(mode);
-  const tagLine = tags.length
-    ? '\n' + tags.map((t) => '#' + String(t).replace(/^#/, '')).join(' ') + '\n'
-    : '\n';
+  const tagLine =
+    tagWriteMode === 'frontmatter' || !tags.length
+      ? '\n'
+      : '\n' + tags.map((t) => '#' + String(t).replace(/^#/, '')).join(' ') + '\n';
   const body =
     '\n\n---\n' +
     SUMMARY_MARKER +

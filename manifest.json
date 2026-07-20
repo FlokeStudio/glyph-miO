@@ -1,7 +1,7 @@
 {
   "id": "glyph-mi-o",
-  "name": "glyph-miO 2.7",
-  "version": "2.7.3",
+  "name": "glyph-miO 2.8",
+  "version": "2.8.0",
   "minAppVersion": "1.5.0",
   "description": "Metadata Intelligence for Obsidian with weighted tags, explainable scores, Ollama status, and theme-safe UI.",
   "author": "Floke Studio",
