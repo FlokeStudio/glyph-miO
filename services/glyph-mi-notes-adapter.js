@@ -58,7 +58,8 @@ function mapVendorToMeta(vendorResult, file) {
     tagDetails,
     summary: fields.summary || '',
     wordCount: fields.wordCount || 0,
-    linkCount: fields.linkCount || 0,
+    links: fields.linkCount ?? 0,
+    headings: fields.headings || [],
     title: fields.title || file?.basename || '',
   };
 }
@@ -114,5 +115,6 @@ module.exports = {
   GLYPH_MI_NOTES_HINT,
   detectNotesModule,
   frontTagsFromCache,
+  mapVendorToMeta,
   analyzeNote,
 };
