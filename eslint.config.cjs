@@ -1,13 +1,11 @@
-import js from '@eslint/js';
-import globals from 'globals';
+const js = require('@eslint/js');
+const globals = require('globals');
 
-export default [
+module.exports = [
   js.configs.recommended,
-
   {
-    ignores: ['node_modules/**', 'vendor/**', 'eslint.config.js', 'vitest.config.js'],
+    ignores: ['node_modules/**', 'vendor/**', 'vitest.config.js'],
   },
-
   {
     files: ['**/*.test.js'],
     languageOptions: {
@@ -18,7 +16,6 @@ export default [
       },
     },
   },
-
   {
     files: ['**/*.js'],
     ignores: ['**/*.test.js'],
@@ -31,11 +28,11 @@ export default [
       },
     },
     rules: {
-      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      'no-unused-vars': ['error', { argsIgnorePattern: '^_', caughtErrors: 'none' }],
       'prefer-const': 'error',
-      'eqeqeq': ['error', 'always', { null: 'ignore' }],
-      'semi': ['error', 'always'],
-      'quotes': ['error', 'single', { avoidEscape: true }],
+      eqeqeq: ['error', 'always', { null: 'ignore' }],
+      semi: ['error', 'always'],
+      quotes: ['error', 'single', { avoidEscape: true }],
       'no-var': 'error',
     },
   },
