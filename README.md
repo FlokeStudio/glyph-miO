@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="ROADMAP.md">Roadmap</a> ·
+  <a href="https://github.com/krwg/glyph-mi">glyph-mi core</a> ·
   <a href="https://flokestudio.github.io/glyph-miO/">Site</a> ·
   <a href="README.ru.md">README.ru</a> ·
   <a href="https://github.com/FlokeStudio/glyph-sO">glyph-sO</a> ·
@@ -43,7 +43,7 @@ It pairs naturally with [**glyph-sO**](https://github.com/FlokeStudio/glyph-sO):
 ### What’s new in 2.7.3
 
 - **Theme-safe UI** — CSS uses Obsidian variables only (no hardcoded hex fallbacks)
-- **[ROADMAP.md](ROADMAP.md)** — shipped sidebar panel, batch vault analysis, frontmatter tags in 2.8.0
+- **2.8.0 follow-ups** — sidebar panel, batch vault analysis, frontmatter tags, glyph-mi notes vendor
 
 ### What’s new in 2.7.2
 
@@ -148,7 +148,7 @@ It pairs naturally with [**glyph-sO**](https://github.com/FlokeStudio/glyph-sO):
 
 ### Architecture note (local vs glyph-mi)
 
-MI logic for this plugin currently lives in local **`services/*`**. Roadmap: consume the shared [glyph-mi](https://github.com/krwg/glyph-mi) **`notes`** module for a common contract (`confidence` / `sources`) via the thin adapter stub — without removing the offline path. Shared **glyph-ui** styling with glyph-sO is a parallel goal.
+MI analysis uses **`services/glyph-mi-notes-adapter.js`**, which prefers the vendored **`vendor/glyph-mi-notes.cjs`** pipeline from [glyph-mi](https://github.com/krwg/glyph-mi) and falls back to local `services/*` when needed. Shared **glyph-ui** styling with glyph-sO remains a parallel goal.
 
 ### Example summary block
 

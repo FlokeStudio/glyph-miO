@@ -54,7 +54,7 @@
 - Опциональное **diff-превью** перед Apply
 - **RU-локализация** подписей команд и настроек (язык Obsidian)
 
-Логика MI сейчас в локальных **`services/*`**. Roadmap: подключить модуль **`notes`** из [glyph-mi](https://github.com/krwg/glyph-mi) (общий контракт `confidence` / `sources`) через адаптер-заглушку — офлайн-путь не ломается.
+Логика MI идёт через **`services/glyph-mi-notes-adapter.js`**: приоритет у vendored **`glyph-mi-notes.cjs`**, локальные **`services/*`** — офлайн-fallback.
 
 ---
 
